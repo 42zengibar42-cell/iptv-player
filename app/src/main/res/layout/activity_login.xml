@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="560dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="40dp"
+        android:paddingBottom="40dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="IPTV Player"
+            android:textColor="@color/text"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Sağlayıcının verdiği bilgileri gir."
+            android:textColor="@color/text_dim"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnXtream"
+                style="@style/Btn"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="Xtream girişi" />
+
+            <Button
+                android:id="@+id/btnM3u"
+                style="@style/Btn"
+                android:layout_width="0dp"
+                android:layout_marginLeft="12dp"
+                android:layout_weight="1"
+                android:text="M3U linki" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/etName"
+            style="@style/Input"
+            android:layout_marginTop="20dp"
+            android:hint="Görünen ad (isteğe bağlı)"
+            android:inputType="text" />
+
+        <LinearLayout
+            android:id="@+id/groupXtream"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/etServer"
+                style="@style/Input"
+                android:hint="Sunucu adresi – örn. http://ornek.com:8080"
+                android:inputType="textUri" />
+
+            <EditText
+                android:id="@+id/etUser"
+                style="@style/Input"
+                android:hint="Kullanıcı adı"
+                android:inputType="text|textNoSuggestions" />
+
+            <EditText
+                android:id="@+id/etPass"
+                style="@style/Input"
+                android:hint="Şifre"
+                android:imeOptions="actionDone"
+                android:inputType="textVisiblePassword|textNoSuggestions" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/groupM3u"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/etM3u"
+                style="@style/Input"
+                android:hint="M3U linki – http://..."
+                android:imeOptions="actionDone"
+                android:inputType="textUri" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnSave"
+            style="@style/Btn"
+            android:layout_width="match_parent"
+            android:layout_marginTop="24dp"
+            android:text="Kaydet ve bağlan" />
+
+        <ProgressBar
+            android:id="@+id/progress"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:textColor="@color/error"
+            android:textSize="16sp" />
+    </LinearLayout>
+</ScrollView>
