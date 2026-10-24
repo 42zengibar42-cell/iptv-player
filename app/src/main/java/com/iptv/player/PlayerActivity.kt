@@ -42,6 +42,11 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvEpgNow: TextView
     private lateinit var tvEpgNext: TextView
     private lateinit var tvError: TextView
+    private lateinit var tvHint: TextView
+    private lateinit var prefs: Prefs
+
+    /** Film / dizi bölümü: sarma kontrolleri açık, ▲▼ kanal değiştirmez */
+    private var vod = false
 
     private var player: ExoPlayer? = null
     private var index = 0
@@ -66,6 +71,15 @@ class PlayerActivity : AppCompatActivity() {
         tvEpgNow = findViewById(R.id.tvEpgNow)
         tvEpgNext = findViewById(R.id.tvEpgNext)
         tvError = findViewById(R.id.tvError)
+        tvHint = findViewById(R.id.tvHint)
+        prefs = Prefs(this)
+        vod = intent.getBooleanExtra("vod", false)
+        if (vod) {
+            playerView.useController = true
+            playerView.controllerShowTimeoutMs = 4000
+            playerView.isFocusable = true
+            tvHint.text = "OK: oynat / duraklat   •   ◀ ▶ sar   •   Geri: listeye dön"
+        }
 
         if (Repo.playlist.isEmpty()) {
             finish()
@@ -88,6 +102,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        savePosition()
         player?.release()
         player = null
     }
@@ -129,6 +144,13 @@ class PlayerActivity : AppCompatActivity() {
         triedAlternative = false
         val c = Repo.playlist[index]
         start(c.url)
+        if (vod) {
+            val resume = prefs.position(c.key)
+            if (resume > 0) {
+                player?.seekTo(resume)
+                android.widget.Toast.makeText(this, "Kaldığın yerden devam ediliyor", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
         showInfo(c)
     }
 
@@ -153,17 +175,17 @@ class PlayerActivity : AppCompatActivity() {
         }
         val c = Repo.playlist.getOrNull(index) ?: return
         // Xtream .ts açılmazsa aynı kanalı .m3u8 olarak dene
-        if (!triedAlternative && c.url.endsWith(".ts")) {
+        if (!vod && !triedAlternative && c.url.endsWith(".ts")) {
             triedAlternative = true
             start(c.url.removeSuffix(".ts") + ".m3u8")
             return
         }
-        tvError.text = "Bu kanal açılamadı.\n${e.errorCodeName}\n\n▲ ▼ ile başka kanala geç"
+        tvError.text = if (vod) "Bu içerik açılamadı.\n${e.errorCodeName}" else "Bu kanal açılamadı.\n${e.errorCodeName}\n\n▲ ▼ ile başka kanala geç"
         tvError.visibility = View.VISIBLE
     }
 
     private fun showInfo(c: Channel) {
-        tvChName.text = "${index + 1}   ${c.name}"
+        tvChName.text = if (vod) c.name else "${index + 1}   ${c.name}"
         infoPanel.visibility = View.VISIBLE
         handler.removeCallbacks(hideInfo)
         handler.postDelayed(hideInfo, 6000)
@@ -174,8 +196,9 @@ class PlayerActivity : AppCompatActivity() {
         epgJob?.cancel()
         tvEpgNow.text = ""
         tvEpgNext.text = ""
+        if (vod || c.kind != Kind.LIVE) return
         val a = Repo.account ?: return
-        if (!a.isXtream) return
+        if (!a.isXtream || !c.key.startsWith("x:")) return
         epgJob = lifecycleScope.launch {
             try {
                 val list = Repo.shortEpg(a, c.streamId)
@@ -193,7 +216,23 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun savePosition() {
+        if (!vod) return
+        val p = player ?: return
+        val c = Repo.playlist.getOrNull(index) ?: return
+        if (p.duration > 0) prefs.savePosition(c.key, p.currentPosition, p.duration)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (vod && event.keyCode != KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN) infoPanel.visibility = View.GONE
+            if (playerView.dispatchKeyEvent(event)) return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (vod) return super.onKeyDown(keyCode, event)
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                 play(index - 1); return true

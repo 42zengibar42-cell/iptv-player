@@ -15,26 +15,43 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:maxWidth="260dp"
-            android:singleLine="true"
-            android:ellipsize="end"
-            android:text="IPTV Player"
-            android:textColor="@color/text"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+        <Button
+            android:id="@+id/tabLive"
+            style="@style/Btn"
+            android:text="Canlı TV" />
+
+        <Button
+            android:id="@+id/tabMovies"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="Filmler" />
+
+        <Button
+            android:id="@+id/tabSeries"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="Diziler" />
+
+        <Button
+            android:id="@+id/tabList"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="☰ Listem" />
+
+        <Button
+            android:id="@+id/tabFav"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="★ Favoriler" />
 
         <EditText
             android:id="@+id/etSearch"
             style="@style/Input"
             android:layout_width="0dp"
-            android:layout_marginLeft="24dp"
+            android:layout_marginLeft="16dp"
             android:layout_marginTop="0dp"
             android:layout_weight="1"
-            android:hint="Kanal ara…"
+            android:hint="Ara…"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:padding="10dp"
@@ -43,14 +60,14 @@
         <Button
             android:id="@+id/btnReload"
             style="@style/Btn"
-            android:layout_marginLeft="12dp"
-            android:text="Yenile" />
+            android:layout_marginLeft="8dp"
+            android:text="⟳ Yenile" />
 
         <Button
             android:id="@+id/btnAccount"
             style="@style/Btn"
-            android:layout_marginLeft="12dp"
-            android:text="Hesap" />
+            android:layout_marginLeft="8dp"
+            android:text="⚙" />
     </LinearLayout>
 
     <FrameLayout
@@ -69,8 +86,8 @@
                 android:layout_width="300dp"
                 android:layout_height="match_parent"
                 android:background="@color/panel"
-                android:padding="8dp"
-                android:clipToPadding="false" />
+                android:clipToPadding="false"
+                android:padding="8dp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvChannels"
@@ -78,16 +95,31 @@
                 android:layout_height="match_parent"
                 android:layout_marginLeft="16dp"
                 android:layout_weight="1"
-                android:padding="4dp"
-                android:clipToPadding="false" />
+                android:clipToPadding="false"
+                android:padding="4dp" />
         </LinearLayout>
 
-        <ProgressBar
-            android:id="@+id/progress"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
+        <LinearLayout
+            android:id="@+id/loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:visibility="gone" />
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:layout_width="56dp"
+                android:layout_height="56dp" />
+
+            <TextView
+                android:id="@+id/tvLoading"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="@color/text_dim"
+                android:textSize="16sp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvEmpty"
@@ -103,10 +135,11 @@
     </FrameLayout>
 
     <TextView
+        android:id="@+id/tvHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK: izle   •   OK'a basılı tut: favorilere ekle / çıkar"
+        android:text="OK: aç   •   OK'a basılı tut: Favorilere / Listeme ekle   •   ⟳ Yenile: güncel listeyi indir   •   ⚙ Hesap"
         android:textColor="@color/text_dim"
         android:textSize="14sp" />
 </LinearLayout>

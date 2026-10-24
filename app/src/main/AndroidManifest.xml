@@ -35,6 +35,11 @@
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize" />
 
         <activity
+            android:name=".EpisodesActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".PlayerActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation"
             android:exported="false"

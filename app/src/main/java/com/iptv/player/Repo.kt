@@ -16,7 +16,7 @@ object Net {
 
     val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
     suspend fun get(url: String): String = withContext(Dispatchers.IO) {
@@ -28,11 +28,18 @@ object Net {
     }
 }
 
-/** Yüklenen liste uygulama açıkken burada tutulur. */
+class SectionData(val categories: List<Category>, val items: List<Channel>)
+
+/** Yüklenen listeler uygulama açıkken burada tutulur. */
 object Repo {
     var account: Account? = null
-    var categories: List<Category> = emptyList()
-    var channels: List<Channel> = emptyList()
+        set(v) {
+            if (v != field) sections.clear()
+            field = v
+        }
+
+    /** Kind.LIVE / Kind.MOVIE / Kind.SERIES → yüklenmiş içerik */
+    val sections = HashMap<String, SectionData>()
 
     /** Oynatıcıda ▲▼ ile gezilen liste (o an ekranda olan kanallar) */
     var playlist: List<Channel> = emptyList()
@@ -78,19 +85,42 @@ object Repo {
         }
     }
 
-    suspend fun load(a: Account) = withContext(Dispatchers.Default) {
-        if (a.isXtream) loadXtream(a) else loadM3u(a)
-        account = a
+    /** İstenen bölümü yükler (önbellekte varsa ve force değilse tekrar indirmez) */
+    suspend fun loadSection(a: Account, kind: String, force: Boolean = false): SectionData =
+        withContext(Dispatchers.Default) {
+            account = a
+            if (!force) sections[kind]?.let { return@withContext it }
+            if (a.isXtream) {
+                val data = when (kind) {
+                    Kind.LIVE -> loadXtreamLive(a)
+                    Kind.MOVIE -> loadXtreamMovies(a)
+                    else -> loadXtreamSeries(a)
+                }
+                sections[kind] = data
+            } else {
+                loadM3u(a)
+            }
+            sections[kind] ?: SectionData(emptyList(), emptyList())
+        }
+
+    private fun cats(arr: JSONArray): List<Category> {
+        val out = ArrayList<Category>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            out.add(Category(o.optString("category_id"), o.optString("category_name").trim()))
+        }
+        return out
     }
 
-    private suspend fun loadXtream(a: Account) {
-        val catArr = JSONArray(Net.get(api(a, "get_live_categories")))
-        val cats = ArrayList<Category>(catArr.length())
-        for (i in 0 until catArr.length()) {
-            val o = catArr.getJSONObject(i)
-            cats.add(Category(o.optString("category_id"), o.optString("category_name").trim()))
-        }
-        val arr = JSONArray(Net.get(api(a, "get_live_streams")))
+    private fun arrayOrEmpty(text: String): JSONArray = try {
+        JSONArray(text)
+    } catch (e: Exception) {
+        JSONArray()
+    }
+
+    private suspend fun loadXtreamLive(a: Account): SectionData {
+        val categories = cats(arrayOrEmpty(Net.get(api(a, "get_live_categories"))))
+        val arr = arrayOrEmpty(Net.get(api(a, "get_live_streams")))
         val list = ArrayList<Channel>(arr.length())
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)
@@ -104,23 +134,122 @@ object Repo {
                     logo = o.optString("stream_icon").trim().ifBlank { null },
                     categoryId = o.optString("category_id"),
                     url = "${a.server}/live/${a.username}/${a.password}/$id.ts",
+                    kind = Kind.LIVE,
                 )
             )
         }
         if (list.isEmpty()) throw IOException("Hesapta canlı kanal bulunamadı.")
-        categories = cats
-        channels = list
+        return SectionData(categories, list)
     }
+
+    private suspend fun loadXtreamMovies(a: Account): SectionData {
+        val categories = cats(arrayOrEmpty(Net.get(api(a, "get_vod_categories"))))
+        val arr = arrayOrEmpty(Net.get(api(a, "get_vod_streams")))
+        val list = ArrayList<Channel>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val id = o.optString("stream_id")
+            if (id.isEmpty()) continue
+            val ext = o.optString("container_extension").ifBlank { "mp4" }
+            list.add(
+                Channel(
+                    key = "v:$id",
+                    streamId = id,
+                    name = o.optString("name").trim(),
+                    logo = o.optString("stream_icon").trim().ifBlank { null },
+                    categoryId = o.optString("category_id"),
+                    url = "${a.server}/movie/${a.username}/${a.password}/$id.$ext",
+                    kind = Kind.MOVIE,
+                )
+            )
+        }
+        return SectionData(categories, list)
+    }
+
+    private suspend fun loadXtreamSeries(a: Account): SectionData {
+        val categories = cats(arrayOrEmpty(Net.get(api(a, "get_series_categories"))))
+        val arr = arrayOrEmpty(Net.get(api(a, "get_series")))
+        val list = ArrayList<Channel>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val id = o.optString("series_id")
+            if (id.isEmpty()) continue
+            list.add(
+                Channel(
+                    key = "s:$id",
+                    streamId = id,
+                    name = o.optString("name").trim(),
+                    logo = o.optString("cover").trim().ifBlank { null },
+                    categoryId = o.optString("category_id"),
+                    url = "",
+                    kind = Kind.SERIES,
+                )
+            )
+        }
+        return SectionData(categories, list)
+    }
+
+    /** Bir dizinin bölümleri: sezon numarası → bölümler */
+    suspend fun loadEpisodes(a: Account, seriesId: String): LinkedHashMap<String, List<Channel>> =
+        withContext(Dispatchers.Default) {
+            val o = JSONObject(Net.get(api(a, "get_series_info", "&series_id=$seriesId")))
+            val out = LinkedHashMap<String, List<Channel>>()
+            val eps = o.opt("episodes")
+            fun parse(season: String, arr: JSONArray) {
+                val list = ArrayList<Channel>()
+                for (i in 0 until arr.length()) {
+                    val e = arr.optJSONObject(i) ?: continue
+                    val id = e.optString("id")
+                    if (id.isEmpty()) continue
+                    val ext = e.optString("container_extension").ifBlank { "mp4" }
+                    val num = e.optString("episode_num")
+                    val title = e.optString("title").trim()
+                    list.add(
+                        Channel(
+                            key = "e:$id",
+                            streamId = id,
+                            name = if (num.isNotEmpty()) "$num. bölüm – $title" else title,
+                            logo = e.optJSONObject("info")?.optString("movie_image")?.trim()?.ifBlank { null },
+                            categoryId = season,
+                            url = "${a.server}/series/${a.username}/${a.password}/$id.$ext",
+                            kind = Kind.EPISODE,
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) out[season] = list
+            }
+            when (eps) {
+                is JSONObject -> {
+                    val keys = eps.keys().asSequence().toList()
+                        .sortedWith(compareBy({ it.toIntOrNull() ?: Int.MAX_VALUE }, { it }))
+                    for (k in keys) eps.optJSONArray(k)?.let { parse(k, it) }
+                }
+                is JSONArray -> for (i in 0 until eps.length()) {
+                    eps.optJSONArray(i)?.let { parse((i + 1).toString(), it) }
+                }
+            }
+            out
+        }
 
     private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
 
+    /** M3U listesini okur; linke göre canlı / film / dizi olarak ayırır */
     private suspend fun loadM3u(a: Account) {
         val text = Net.get(a.m3uUrl)
-        val cats = LinkedHashMap<String, Category>()
-        val list = ArrayList<Channel>()
+        val catMaps = mapOf(
+            Kind.LIVE to LinkedHashMap<String, Category>(),
+            Kind.MOVIE to LinkedHashMap(),
+            Kind.SERIES to LinkedHashMap(),
+        )
+        val lists = mapOf(
+            Kind.LIVE to ArrayList<Channel>(),
+            Kind.MOVIE to ArrayList(),
+            Kind.SERIES to ArrayList(),
+        )
         var name: String? = null
         var logo: String? = null
         var group = "Diğer"
+        var n = 0
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             when {
@@ -136,16 +265,23 @@ object Repo {
                 }
                 line.isEmpty() || line.startsWith("#") -> Unit
                 else -> {
+                    val section = when {
+                        line.contains("/movie/") -> Kind.MOVIE
+                        line.contains("/series/") -> Kind.SERIES
+                        else -> Kind.LIVE
+                    }
                     val g = group
-                    cats.getOrPut(g) { Category(g, g) }
-                    list.add(
+                    catMaps.getValue(section).getOrPut(g) { Category(g, g) }
+                    n++
+                    lists.getValue(section).add(
                         Channel(
                             key = "m:$line",
-                            streamId = list.size.toString(),
-                            name = name ?: "Kanal ${list.size + 1}",
+                            streamId = n.toString(),
+                            name = name ?: "Kanal $n",
                             logo = logo,
                             categoryId = g,
                             url = line,
+                            kind = if (section == Kind.SERIES) Kind.EPISODE else section,
                         )
                     )
                     name = null
@@ -154,9 +290,10 @@ object Repo {
                 }
             }
         }
-        if (list.isEmpty()) throw IOException("Listede kanal bulunamadı.")
-        categories = cats.values.toList()
-        channels = list
+        if (n == 0) throw IOException("Listede kanal bulunamadı.")
+        for (k in listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES)) {
+            sections[k] = SectionData(catMaps.getValue(k).values.toList(), lists.getValue(k))
+        }
     }
 
     /** #EXTINF satırında tırnak dışındaki ilk virgülden sonrası kanal adıdır */

@@ -109,7 +109,7 @@ class LoginActivity : AppCompatActivity() {
                 if (x) Repo.checkXtream(account) else Repo.checkM3u(account)
                 prefs.account = account
                 Repo.account = null
-                Repo.channels = emptyList()
+                Repo.sections.clear()
                 startActivity(
                     Intent(this@LoginActivity, ChannelsActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

@@ -45,7 +45,7 @@ class ChannelAdapter(
     private val onClick: (Int) -> Unit,
     private val onLongClick: (Int) -> Unit,
     private val onLeft: () -> Unit,
-    private val isFavorite: (Channel) -> Boolean,
+    private val badge: (Channel) -> String,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
 
     var items: List<Channel> = emptyList()
@@ -70,7 +70,7 @@ class ChannelAdapter(
         val c = items[position]
         h.num.text = (position + 1).toString()
         h.name.text = c.name
-        h.fav.visibility = if (isFavorite(c)) View.VISIBLE else View.GONE
+        h.fav.text = badge(c)
         if (c.logo == null) {
             h.logo.dispose()
             h.logo.setImageResource(R.drawable.ic_tv)
