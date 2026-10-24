@@ -22,7 +22,7 @@ class ChannelsActivity : AppCompatActivity() {
         const val TAB_FAV = "fav"
         const val TAB_LIST = "list"
         const val ALL = "__all__"
-        const val RESTORE = "__restore__"
+        const val EDIT = "__edit__"
     }
 
     private lateinit var prefs: Prefs
@@ -107,7 +107,12 @@ class ChannelsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (!::chAdapter.isInitialized) return
-        // Favoriler / Listem başka ekrandan değişmiş olabilir
+        // Favoriler / Listem / kategori ayarları başka ekrandan değişmiş olabilir
+        if (editorOpened) {
+            editorOpened = false
+            if (!isCollection) rebuildSection()
+            return
+        }
         if (isCollection) refreshCollection() else chAdapter.notifyDataSetChanged()
         // Oynatıcıdan dönünce son izlenen kanala git
         val i = Repo.lastIndex
@@ -208,15 +213,13 @@ class ChannelsActivity : AppCompatActivity() {
                 ids.add(c.id)
                 titles.add("${c.name} ($n)")
             }
-            if (hiddenCount > 0) {
-                ids.add(RESTORE)
-                titles.add("👁 Gizli kategoriler ($hiddenCount)")
-            }
+            ids.add(EDIT)
+            titles.add(if (hiddenCount > 0) "✎ Kategorileri düzenle ($hiddenCount gizli)" else "✎ Kategorileri düzenle")
         }
         catIds = ids
         catAdapter.items = titles
         val last = if (isCollection) -1 else ids.indexOf(prefs.lastCategory(tab))
-        catAdapter.selected = if (last > 0 && ids[last] != RESTORE) last else 0
+        catAdapter.selected = if (last > 0 && ids[last] != EDIT) last else 0
         catAdapter.notifyDataSetChanged()
         rvCategories.scrollToPosition(catAdapter.selected)
         applyFilter()
@@ -231,9 +234,9 @@ class ChannelsActivity : AppCompatActivity() {
         }
         val q = etSearch.text.toString().trim()
         val id = catIds.getOrElse(catAdapter.selected) { ALL }
-        if (!isCollection && id != RESTORE) prefs.setLastCategory(tab, id)
+        if (!isCollection && id != EDIT) prefs.setLastCategory(tab, id)
         var list = when {
-            id == RESTORE && q.isEmpty() -> emptyList()
+            id == EDIT && q.isEmpty() -> emptyList()
             id == ALL -> sectionItems
             isCollection && id == Kind.SERIES -> sectionItems.filter { it.kind == Kind.SERIES || it.kind == Kind.EPISODE }
             isCollection -> sectionItems.filter { it.kind == id }
@@ -254,7 +257,7 @@ class ChannelsActivity : AppCompatActivity() {
         val q = etSearch.text.toString().trim()
         tvEmpty.text = when {
             q.isNotEmpty() -> "\"$q\" için sonuç bulunamadı."
-            catIds.getOrNull(catAdapter.selected) == RESTORE -> "$hiddenCount kategori gizli.\nOK'a basarak hepsini geri getir."
+            catIds.getOrNull(catAdapter.selected) == EDIT -> "OK'a bas: kategorileri sırala, göster veya gizle."
             tab == TAB_FAV -> "Henüz favori yok.\nBir kanal, film ya da dizinin üzerinde OK'a basılı tut → Favorilere ekle."
             tab == TAB_LIST -> "Listen boş.\nBir film ya da dizinin üzerinde OK'a basılı tut → Listeme ekle."
             sectionItems.isEmpty() -> "Bu hesapta ${sectionName(tab)} yok."
@@ -303,12 +306,17 @@ class ChannelsActivity : AppCompatActivity() {
         val hidden = prefs.hiddenCategories(tab)
         val present = data.items.mapTo(HashSet()) { it.categoryId }
         hiddenCount = hidden.count { it in present }
-        sectionItems = if (hidden.isEmpty()) data.items else data.items.filter { it.categoryId !in hidden }
+        val visible = if (hidden.isEmpty()) data.items else data.items.filter { it.categoryId !in hidden }
+        // "Tümü" listesi de kategori sırasına göre dizilsin
+        val rank = HashMap<String, Int>()
+        prefs.sortCategories(tab, data.categories).forEachIndexed { i, c -> rank[c.id] = i }
+        sectionItems = if (prefs.categoryOrder(tab).isEmpty()) visible
+        else visible.sortedBy { rank[it.categoryId] ?: Int.MAX_VALUE }
     }
 
     private fun visibleCategories(): List<Category> {
         val hidden = prefs.hiddenCategories(tab)
-        return sectionCategories.filter { it.id !in hidden }
+        return prefs.sortCategories(tab, sectionCategories).filter { it.id !in hidden }
     }
 
     /** Kategoriyi gizledikten / geri getirdikten sonra listeyi yeniden kur */
@@ -321,7 +329,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun categoryMenu(pos: Int) {
         if (isCollection) return
         val id = catIds.getOrNull(pos) ?: return
-        if (id == ALL || id == RESTORE) return
+        if (id == ALL || id == EDIT) return
         val name = sectionCategories.firstOrNull { it.id == id }?.name ?: return
         android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle(name)
@@ -334,11 +342,12 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
+    private var editorOpened = false
+
     private fun categoryClick(pos: Int) {
-        if (catIds.getOrNull(pos) != RESTORE) return
-        prefs.clearHiddenCategories(tab)
-        Toast.makeText(this, "Gizli kategoriler geri getirildi", Toast.LENGTH_SHORT).show()
-        rebuildSection()
+        if (catIds.getOrNull(pos) != EDIT || Repo.sections[tab] == null) return
+        editorOpened = true
+        startActivity(Intent(this, CategoryEditActivity::class.java).putExtra("section", tab))
     }
 
     private val isCollection get() = tab == TAB_FAV || tab == TAB_LIST

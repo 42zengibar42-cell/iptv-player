@@ -171,6 +171,29 @@ class Prefs(context: Context) {
         sp.edit().remove("hidden_$section").apply()
     }
 
+    /** Kullanıcının belirlediği kategori sırası (kategori kimlikleri) */
+    fun categoryOrder(section: String): List<String> = try {
+        val arr = JSONArray(sp.getString("order_$section", "[]"))
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun setCategoryOrder(section: String, ids: List<String>) {
+        sp.edit().putString("order_$section", JSONArray(ids).toString()).apply()
+    }
+
+    /** Kayıtlı sıraya göre dizer; yeni gelen kategoriler sona eklenir */
+    fun sortCategories(section: String, cats: List<Category>): List<Category> {
+        val order = categoryOrder(section)
+        if (order.isEmpty()) return cats
+        val rank = HashMap<String, Int>()
+        order.forEachIndexed { i, id -> rank[id] = i }
+        return cats.withIndex()
+            .sortedWith(compareBy({ rank[it.value.id] ?: (order.size + it.index) }))
+            .map { it.value }
+    }
+
     fun lastCategory(section: String): String? = sp.getString("lastcat_$section", null)
 
     fun setLastCategory(section: String, id: String) {

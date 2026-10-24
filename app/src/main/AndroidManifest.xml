@@ -35,6 +35,11 @@
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize" />
 
         <activity
+            android:name=".CategoryEditActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".EpisodesActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />

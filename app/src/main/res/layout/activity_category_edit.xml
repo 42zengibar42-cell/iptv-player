@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical"
+    android:paddingLeft="48dp"
+    android:paddingTop="20dp"
+    android:paddingRight="48dp"
+    android:paddingBottom="12dp">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="OK: göster / gizle   •   ▶ ile ▲ ▼ düğmelerine geç, OK ile kategoriyi yukarı / aşağı taşı   •   Geri: kaydet ve çık"
+        android:textColor="@color/text_dim"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnShowAll"
+            style="@style/Btn"
+            android:text="☑ Hepsini göster" />
+
+        <Button
+            android:id="@+id/btnResetOrder"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="↺ Sağlayıcı sırasına dön" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvEdit"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:background="@color/panel"
+        android:clipToPadding="false"
+        android:padding="8dp" />
+</LinearLayout>
