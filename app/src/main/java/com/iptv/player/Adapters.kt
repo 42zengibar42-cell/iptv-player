@@ -11,6 +11,8 @@ import coil.dispose
 import coil.load
 
 class CategoryAdapter(
+    private val onLongClick: ((Int) -> Unit)? = null,
+    private val onClick: ((Int) -> Unit)? = null,
     private val onSelect: (Int) -> Unit,
 ) : RecyclerView.Adapter<CategoryAdapter.VH>() {
 
@@ -28,7 +30,15 @@ class CategoryAdapter(
         h.tv.text = items[position]
         h.tv.isActivated = position == selected
         h.tv.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) select(h.bindingAdapterPosition) }
-        h.tv.setOnClickListener { select(h.bindingAdapterPosition) }
+        h.tv.setOnClickListener {
+            select(h.bindingAdapterPosition)
+            onClick?.invoke(h.bindingAdapterPosition)
+        }
+        h.tv.setOnLongClickListener {
+            val cb = onLongClick ?: return@setOnLongClickListener false
+            cb(h.bindingAdapterPosition)
+            true
+        }
     }
 
     fun select(pos: Int) {

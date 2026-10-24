@@ -156,6 +156,27 @@ class Prefs(context: Context) {
         sp.edit().remove("fav").apply()
     }
 
+    // ---------- Gizli kategoriler ve son seçilen kategori ----------
+
+    fun hiddenCategories(section: String): Set<String> =
+        sp.getStringSet("hidden_$section", emptySet())?.toSet() ?: emptySet()
+
+    fun setCategoryHidden(section: String, id: String, hidden: Boolean) {
+        val set = hiddenCategories(section).toMutableSet()
+        if (hidden) set.add(id) else set.remove(id)
+        sp.edit().putStringSet("hidden_$section", set).apply()
+    }
+
+    fun clearHiddenCategories(section: String) {
+        sp.edit().remove("hidden_$section").apply()
+    }
+
+    fun lastCategory(section: String): String? = sp.getString("lastcat_$section", null)
+
+    fun setLastCategory(section: String, id: String) {
+        sp.edit().putString("lastcat_$section", id).apply()
+    }
+
     // ---------- Kaldığın yer (filmler / bölümler) ----------
 
     fun position(key: String): Long = pos.getLong(key, 0L)

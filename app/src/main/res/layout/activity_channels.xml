@@ -139,7 +139,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK: aç   •   OK'a basılı tut: Favorilere / Listeme ekle   •   ⟳ Yenile: güncel listeyi indir   •   ⚙ Hesap"
+        android:text="OK: aç   •   OK'a basılı tut: Favori / Listem   •   Kategoride basılı tut: gizle   •   ⟳ Yenile: güncel liste"
         android:textColor="@color/text_dim"
         android:textSize="14sp" />
 </LinearLayout>
