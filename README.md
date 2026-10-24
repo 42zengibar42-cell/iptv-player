@@ -3,7 +3,7 @@
 Android TV kutuları için basit bir IPTV oynatıcı. Uygulamanın içinde hiçbir kanal yoktur; kendi sağlayıcının bilgilerini girersin.
 
 ## Özellikler
-- Kullanıcı adı ile giriş (Xtream: (sunucu adresi, kullanıcı adı, şifre) ya da M3U linki)
+- Kullanıcı adı ile giriş (Xtream: sunucu adresi, kullanıcı adı, şifre) ya da M3U linki ile giriş
 - Kategoriler, arama, favoriler (OK tuşuna basılı tut)
 - Yayın akışı (Xtream hesaplarında: şimdi / sonra)
 - Kumandayla kullanım: ▲ ▼ kanal değiştir, OK bilgi, Geri listeye dön
