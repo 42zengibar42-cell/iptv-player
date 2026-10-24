@@ -16,7 +16,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="IPTV Player"
+            android:text="KcKTV"
             android:textColor="@color/text"
             android:textSize="30sp"
             android:textStyle="bold" />
@@ -40,7 +40,7 @@
                 style="@style/Btn"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:text="Xtream girişi" />
+                android:text="Kullanıcı adı ile giriş" />
 
             <Button
                 android:id="@+id/btnM3u"
@@ -48,7 +48,7 @@
                 android:layout_width="0dp"
                 android:layout_marginLeft="12dp"
                 android:layout_weight="1"
-                android:text="M3U linki" />
+                android:text="M3U linki ile giriş" />
         </LinearLayout>
 
         <EditText
