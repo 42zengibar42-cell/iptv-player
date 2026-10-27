@@ -4,7 +4,9 @@ Android TV kutuları için basit bir IPTV oynatıcı. Uygulamanın içinde hiçb
 
 ## Özellikler
 - Kullanıcı adı ile giriş (Xtream: sunucu adresi, kullanıcı adı, şifre) ya da M3U linki ile giriş
-- Kategoriler, arama, favoriler (OK tuşuna basılı tut)
+- Canlı TV, Filmler, Diziler, Listem, Favoriler
+- Film ve dizi açıklamaları (konu, yıl, tür, süre, puan, oyuncular)
+- Kategoriler, arama, kategori sıralama ve gizleme
 - Yayın akışı (Xtream hesaplarında: şimdi / sonra)
 - Kumandayla kullanım: ▲ ▼ kanal değiştir, OK bilgi, Geri listeye dön
 - .ts açılmazsa otomatik olarak .m3u8 dener

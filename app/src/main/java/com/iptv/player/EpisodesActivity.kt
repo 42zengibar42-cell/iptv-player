@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import kotlinx.coroutines.launch
 
 /** Bir dizinin sezonları (solda) ve bölümleri (sağda) */
@@ -57,7 +58,9 @@ class EpisodesActivity : AppCompatActivity() {
         progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                seasons = Repo.loadEpisodes(account, seriesId).toList()
+                val (details, eps) = Repo.loadEpisodes(account, seriesId)
+                seasons = eps.toList()
+                showDetails(details)
                 if (seasons.isEmpty()) {
                     tvEmpty.text = "Bu dizide bölüm bulunamadı."
                     tvEmpty.visibility = View.VISIBLE
@@ -98,5 +101,18 @@ class EpisodesActivity : AppCompatActivity() {
     private fun toggleFavorite(pos: Int) {
         val c = episodeAdapter.items.getOrNull(pos) ?: return
         showItemMenu(this, prefs, c) { episodeAdapter.notifyItemChanged(pos) }
+    }
+
+    /** Dizinin afişi, yıl / tür / puan ve konusu */
+    private fun showDetails(d: Repo.Details?) {
+        val poster = d?.poster ?: intent.getStringExtra("logo")
+        if (poster != null) {
+            val iv = findViewById<android.widget.ImageView>(R.id.ivPoster)
+            iv.visibility = View.VISIBLE
+            iv.load(poster)
+        }
+        if (d == null) return
+        findViewById<TextView>(R.id.tvMeta).text = d.meta
+        findViewById<TextView>(R.id.tvPlot).text = d.plot
     }
 }

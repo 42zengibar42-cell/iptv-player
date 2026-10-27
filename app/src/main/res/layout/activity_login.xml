@@ -76,12 +76,29 @@
                 android:hint="Kullanıcı adı"
                 android:inputType="text|textNoSuggestions" />
 
-            <EditText
-                android:id="@+id/etPass"
-                style="@style/Input"
-                android:hint="Şifre"
-                android:imeOptions="actionDone"
-                android:inputType="textVisiblePassword|textNoSuggestions" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etPass"
+                    style="@style/Input"
+                    android:layout_width="0dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_weight="1"
+                    android:hint="Şifre"
+                    android:imeOptions="actionDone"
+                    android:inputType="textPassword|textNoSuggestions" />
+
+                <Button
+                    android:id="@+id/btnShowPass"
+                    style="@style/Btn"
+                    android:layout_marginLeft="8dp"
+                    android:text="👁 Göster" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout

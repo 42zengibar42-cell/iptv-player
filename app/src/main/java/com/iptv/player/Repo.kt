@@ -189,10 +189,76 @@ object Repo {
         return SectionData(categories, list)
     }
 
-    /** Bir dizinin bölümleri: sezon numarası → bölümler */
-    suspend fun loadEpisodes(a: Account, seriesId: String): LinkedHashMap<String, List<Channel>> =
+    /** Film / dizi açıklaması */
+    data class Details(
+        val poster: String?,
+        val plot: String,
+        val genre: String,
+        val year: String,
+        val duration: String,
+        val rating: String,
+        val cast: String,
+        val director: String,
+    ) {
+        /** "2023 • Dram, Gerilim • 2 sa 5 dk • ★ 7.4" */
+        val meta: String
+            get() = listOf(year, genre, duration, if (rating.isNotBlank()) "★ $rating" else "")
+                .filter { it.isNotBlank() }.joinToString("   •   ")
+    }
+
+    private fun JSONObject.str(vararg keys: String): String {
+        for (k in keys) {
+            val v = opt(k)
+            val t = when (v) {
+                null, JSONObject.NULL -> ""
+                is JSONArray -> (0 until v.length()).joinToString(", ") { v.optString(it) }
+                else -> v.toString()
+            }.trim()
+            if (t.isNotEmpty() && t != "null" && t != "0" && t != "0.0") return t
+        }
+        return ""
+    }
+
+    private fun parseDetails(info: JSONObject?): Details? {
+        if (info == null) return null
+        var year = info.str("releasedate", "releaseDate", "release_date", "year")
+        if (year.length >= 4 && year[0].isDigit()) year = year.take(4)
+        var duration = info.str("duration")
+        // "01:45:00" → "1 sa 45 dk"
+        Regex("""^(\d+):(\d+)(:\d+)?$""").find(duration)?.let {
+            val h = it.groupValues[1].toInt()
+            val m = it.groupValues[2].toInt()
+            duration = if (h > 0) "$h sa $m dk" else "$m dk"
+        }
+        if (duration.isEmpty()) {
+            val secs = info.optLong("duration_secs", 0)
+            if (secs > 0) duration = "${secs / 3600} sa ${(secs % 3600) / 60} dk"
+        }
+        val rating = info.str("rating", "rating_5based").let { r ->
+            r.toDoubleOrNull()?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: r
+        }
+        return Details(
+            poster = info.str("movie_image", "cover_big", "cover", "backdrop_path").ifBlank { null },
+            plot = info.str("plot", "description"),
+            genre = info.str("genre"),
+            year = year,
+            duration = duration,
+            rating = rating,
+            cast = info.str("cast", "actors"),
+            director = info.str("director"),
+        )
+    }
+
+    suspend fun movieDetails(a: Account, vodId: String): Details? = withContext(Dispatchers.Default) {
+        val o = JSONObject(Net.get(api(a, "get_vod_info", "&vod_id=$vodId")))
+        parseDetails(o.optJSONObject("info"))
+    }
+
+    /** Bir dizinin açıklaması ve bölümleri (sezon numarası → bölümler) */
+    suspend fun loadEpisodes(a: Account, seriesId: String): Pair<Details?, LinkedHashMap<String, List<Channel>>> =
         withContext(Dispatchers.Default) {
             val o = JSONObject(Net.get(api(a, "get_series_info", "&series_id=$seriesId")))
+            val details = parseDetails(o.optJSONObject("info"))
             val out = LinkedHashMap<String, List<Channel>>()
             val eps = o.opt("episodes")
             fun parse(season: String, arr: JSONArray) {
@@ -228,7 +294,7 @@ object Repo {
                     eps.optJSONArray(i)?.let { parse((i + 1).toString(), it) }
                 }
             }
-            out
+            details to out
         }
 
     private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")

@@ -62,6 +62,20 @@ class LoginActivity : AppCompatActivity() {
         btnM3u.setOnClickListener { setMode(Account.TYPE_M3U) }
         btnSave.setOnClickListener { save() }
 
+        // Şifre gizli başlar; düğmeyle göster / gizle
+        val btnShowPass = findViewById<Button>(R.id.btnShowPass)
+        var passVisible = false
+        btnShowPass.setOnClickListener {
+            passVisible = !passVisible
+            val sel = etPass.selectionEnd
+            etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                if (passVisible) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            etPass.setSelection(sel.coerceIn(0, etPass.text.length))
+            btnShowPass.text = if (passVisible) "🙈 Gizle" else "👁 Göster"
+        }
+
         if (mode == Account.TYPE_XTREAM) btnXtream.requestFocus() else btnM3u.requestFocus()
     }
 

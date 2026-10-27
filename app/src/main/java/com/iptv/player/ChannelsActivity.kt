@@ -285,7 +285,12 @@ class ChannelsActivity : AppCompatActivity() {
                 Intent(this, EpisodesActivity::class.java)
                     .putExtra("seriesId", c.streamId)
                     .putExtra("name", c.name)
+                    .putExtra("logo", c.logo)
             )
+            c.kind == Kind.MOVIE && c.key.startsWith("v:") -> {
+                DetailActivity.item = c
+                startActivity(Intent(this, DetailActivity::class.java))
+            }
             c.isVod -> {
                 Repo.playlist = listOf(c)
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", 0).putExtra("vod", true))
