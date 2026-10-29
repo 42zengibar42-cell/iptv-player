@@ -41,6 +41,8 @@ data class Channel(
     val categoryId: String,
     val url: String,
     val kind: String = Kind.LIVE,
+    /** Sağlayıcıya eklenme zamanı (sn), "En yeni" sıralaması için */
+    val added: Long = 0,
 ) {
     val isVod get() = kind != Kind.LIVE
     val isSeriesFolder get() = kind == Kind.SERIES && url.isEmpty()
@@ -192,6 +194,13 @@ class Prefs(context: Context) {
         return cats.withIndex()
             .sortedWith(compareBy({ rank[it.value.id] ?: (order.size + it.index) }))
             .map { it.value }
+    }
+
+    /** 0 = sağlayıcı sırası, 1 = A–Z, 2 = en yeni */
+    fun sortMode(section: String): Int = sp.getInt("sort_$section", 0)
+
+    fun setSortMode(section: String, mode: Int) {
+        sp.edit().putInt("sort_$section", mode).apply()
     }
 
     fun lastCategory(section: String): String? = sp.getString("lastcat_$section", null)

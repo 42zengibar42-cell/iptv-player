@@ -37,6 +37,7 @@ class ChannelsActivity : AppCompatActivity() {
     private lateinit var catAdapter: CategoryAdapter
     private lateinit var chAdapter: ChannelAdapter
     private lateinit var tabs: Map<String, Button>
+    private lateinit var btnSort: Button
 
     /** Kind.LIVE / Kind.MOVIE / Kind.SERIES / TAB_FAV */
     private var tab = Kind.LIVE
@@ -97,6 +98,8 @@ class ChannelsActivity : AppCompatActivity() {
 
         etSearch.doAfterTextChanged { applyFilter() }
         findViewById<Button>(R.id.btnReload).setOnClickListener { reload() }
+        btnSort = findViewById(R.id.btnSort)
+        btnSort.setOnClickListener { cycleSort() }
         findViewById<Button>(R.id.btnAccount).setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
         }
@@ -125,6 +128,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun showTab(key: String, focusList: Boolean) {
         tab = key
         tabs.forEach { (k, b) -> b.isActivated = k == key }
+        btnSort.text = sortLabel()
         tvEmpty.visibility = View.GONE
         loadJob?.cancel()
         loading.visibility = View.GONE
@@ -243,7 +247,7 @@ class ChannelsActivity : AppCompatActivity() {
             else -> sectionItems.filter { it.categoryId == id }
         }
         if (q.isNotEmpty()) list = (if (id == ALL) sectionItems else list).filter { it.name.contains(q, ignoreCase = true) }
-        chAdapter.items = list
+        chAdapter.items = sorted(list)
         rvChannels.scrollToPosition(0)
         showEmptyIfNeeded()
     }
@@ -353,6 +357,45 @@ class ChannelsActivity : AppCompatActivity() {
         if (catIds.getOrNull(pos) != EDIT || Repo.sections[tab] == null) return
         editorOpened = true
         startActivity(Intent(this, CategoryEditActivity::class.java).putExtra("section", tab))
+    }
+
+    private val collator = java.text.Collator.getInstance(java.util.Locale("tr", "TR")).apply {
+        strength = java.text.Collator.PRIMARY
+    }
+
+    /** Adın başındaki "DE - ", "|TR| " gibi ön ekleri sıralamada yok say */
+    private val prefix = Regex("""^\s*([|\[(]?[A-Z]{2,3}[|\])]?\s*[-:|]\s*|[|\[(][A-Z]{2,3}[|\])]\s*)""")
+
+    private fun sortKey(name: String) = name.replaceFirst(prefix, "").trim()
+
+    private fun sorted(list: List<Channel>): List<Channel> = when (prefs.sortMode(tab)) {
+        1 -> list.sortedWith { a, b -> collator.compare(sortKey(a.name), sortKey(b.name)) }
+        2 -> list.sortedByDescending { it.added }
+        else -> list
+    }
+
+    private fun sortLabel() = when (prefs.sortMode(tab)) {
+        1 -> "⇅ A–Z"
+        2 -> "⇅ En yeni"
+        else -> "⇅ Sıra"
+    }
+
+    private fun cycleSort() {
+        // "En yeni" sadece filmler ve dizilerde anlamlı
+        val max = if (tab == Kind.MOVIE || tab == Kind.SERIES) 2 else 1
+        val next = (prefs.sortMode(tab) + 1) % (max + 1)
+        prefs.setSortMode(tab, next)
+        btnSort.text = sortLabel()
+        Toast.makeText(
+            this,
+            when (next) {
+                1 -> "Sıralama: A'dan Z'ye"
+                2 -> "Sıralama: en yeni eklenenler önce"
+                else -> "Sıralama: sağlayıcının sırası"
+            },
+            Toast.LENGTH_SHORT,
+        ).show()
+        applyFilter()
     }
 
     private val isCollection get() = tab == TAB_FAV || tab == TAB_LIST

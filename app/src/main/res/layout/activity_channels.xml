@@ -58,10 +58,16 @@
             android:textSize="16sp" />
 
         <Button
+            android:id="@+id/btnSort"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp"
+            android:text="⇅ Sıra" />
+
+        <Button
             android:id="@+id/btnReload"
             style="@style/Btn"
             android:layout_marginLeft="8dp"
-            android:text="⟳ Yenile" />
+            android:text="⟳" />
 
         <Button
             android:id="@+id/btnAccount"
@@ -139,7 +145,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK: aç   •   OK'a basılı tut: Favori / Listem   •   Kategoride basılı tut: gizle   •   ✎ sırala   •   ⟳ Yenile: güncel liste"
+        android:text="OK: aç   •   OK'a basılı tut: Favori / Listem   •   Kategoride basılı tut: gizle   •   ✎ sırala   •   ⇅ sırala   •   ⟳ güncel liste"
         android:textColor="@color/text_dim"
         android:textSize="14sp" />
 </LinearLayout>

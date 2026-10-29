@@ -158,6 +158,7 @@ object Repo {
                     name = o.optString("name").trim(),
                     logo = o.optString("stream_icon").trim().ifBlank { null },
                     categoryId = o.optString("category_id"),
+                    added = o.optString("added").toLongOrNull() ?: 0L,
                     url = "${a.server}/movie/${a.username}/${a.password}/$id.$ext",
                     kind = Kind.MOVIE,
                 )
@@ -181,6 +182,7 @@ object Repo {
                     name = o.optString("name").trim(),
                     logo = o.optString("cover").trim().ifBlank { null },
                     categoryId = o.optString("category_id"),
+                    added = o.optString("last_modified").toLongOrNull() ?: 0L,
                     url = "",
                     kind = Kind.SERIES,
                 )
