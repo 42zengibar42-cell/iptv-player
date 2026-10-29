@@ -55,6 +55,21 @@ class CategoryEditActivity : AppCompatActivity() {
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {}
         }).attachToRecyclerView(rv)
 
+        val btnPin = findViewById<Button>(R.id.btnPin)
+        fun updatePin() {
+            btnPin.text = if (prefs.pin != null) "🔓 Şifreyi kaldır" else "🔒 Şifre koy"
+        }
+        updatePin()
+        btnPin.setOnClickListener {
+            if (prefs.pin != null) {
+                prefs.pin = null
+                android.widget.Toast.makeText(this, "Şifre kaldırıldı", android.widget.Toast.LENGTH_SHORT).show()
+                updatePin()
+            } else {
+                setNewPin(this, prefs) { updatePin() }
+            }
+        }
+
         findViewById<Button>(R.id.btnShowAll).setOnClickListener {
             hidden.clear()
             prefs.clearHiddenCategories(section)

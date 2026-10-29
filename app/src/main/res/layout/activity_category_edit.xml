@@ -41,6 +41,11 @@
             style="@style/Btn"
             android:layout_marginLeft="8dp"
             android:text="↺ Sağlayıcı sırasına dön" />
+
+        <Button
+            android:id="@+id/btnPin"
+            style="@style/Btn"
+            android:layout_marginLeft="8dp" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView

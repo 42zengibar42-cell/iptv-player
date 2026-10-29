@@ -67,7 +67,7 @@
             android:id="@+id/btnReload"
             style="@style/Btn"
             android:layout_marginLeft="8dp"
-            android:text="⟳" />
+            android:text="⟳ Yenile" />
 
         <Button
             android:id="@+id/btnAccount"
@@ -145,7 +145,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK: aç   •   OK'a basılı tut: Favori / Listem   •   Kategoride basılı tut: gizle   •   ✎ sırala   •   ⇅ sırala   •   ⟳ güncel liste"
+        android:text="OK: aç   •   Basılı tut: Favori / Listem, kategoride gizle   •   ✎ kategorileri düzenle   •   ⇅ sıralama   •   ⟳ güncel liste"
         android:textColor="@color/text_dim"
         android:textSize="14sp" />
 </LinearLayout>

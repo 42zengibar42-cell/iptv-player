@@ -218,7 +218,13 @@ class ChannelsActivity : AppCompatActivity() {
                 titles.add("${c.name} ($n)")
             }
             ids.add(EDIT)
-            titles.add(if (hiddenCount > 0) "✎ Kategorileri düzenle ($hiddenCount gizli)" else "✎ Kategorileri düzenle")
+            titles.add(
+                when {
+                    prefs.pin != null -> "✎ Kategorileri düzenle 🔒"
+                    hiddenCount > 0 -> "✎ Kategorileri düzenle ($hiddenCount gizli)"
+                    else -> "✎ Kategorileri düzenle"
+                }
+            )
         }
         catIds = ids
         catAdapter.items = titles
@@ -355,8 +361,11 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun categoryClick(pos: Int) {
         if (catIds.getOrNull(pos) != EDIT || Repo.sections[tab] == null) return
-        editorOpened = true
-        startActivity(Intent(this, CategoryEditActivity::class.java).putExtra("section", tab))
+        val section = tab
+        askPin(this, prefs) {
+            editorOpened = true
+            startActivity(Intent(this, CategoryEditActivity::class.java).putExtra("section", section))
+        }
     }
 
     private val collator = java.text.Collator.getInstance(java.util.Locale("tr", "TR")).apply {

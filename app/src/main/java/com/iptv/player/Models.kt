@@ -196,6 +196,13 @@ class Prefs(context: Context) {
             .map { it.value }
     }
 
+    /** Gizli kategoriler için 4 haneli şifre (yoksa null) */
+    var pin: String?
+        get() = sp.getString("pin", null)?.ifBlank { null }
+        set(v) {
+            sp.edit().apply { if (v == null) remove("pin") else putString("pin", v) }.apply()
+        }
+
     /** 0 = sağlayıcı sırası, 1 = A–Z, 2 = en yeni */
     fun sortMode(section: String): Int = sp.getInt("sort_$section", 0)
 
