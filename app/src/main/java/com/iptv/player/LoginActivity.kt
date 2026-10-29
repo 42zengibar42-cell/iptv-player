@@ -62,6 +62,9 @@ class LoginActivity : AppCompatActivity() {
         btnM3u.setOnClickListener { setMode(Account.TYPE_M3U) }
         btnSave.setOnClickListener { save() }
 
+        findViewById<TextView>(R.id.tvVersion).text = "KcKTV sürüm ${Updater.currentVersion(this)}"
+        findViewById<Button>(R.id.btnUpdate).setOnClickListener { Updater.check(this, manual = true) }
+
         // Şifre gizli başlar; düğmeyle göster / gizle
         val btnShowPass = findViewById<Button>(R.id.btnShowPass)
         var passVisible = false

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg"
@@ -51,7 +52,7 @@
             android:layout_marginLeft="16dp"
             android:layout_marginTop="0dp"
             android:layout_weight="1"
-            android:hint="Ara…"
+            android:hint="Ara (her yerde)…"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:padding="10dp"
@@ -89,7 +90,7 @@
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvCategories"
-                android:layout_width="300dp"
+                android:layout_width="250dp"
                 android:layout_height="match_parent"
                 android:background="@color/panel"
                 android:clipToPadding="false"
@@ -103,6 +104,56 @@
                 android:layout_weight="1"
                 android:clipToPadding="false"
                 android:padding="4dp" />
+
+            <LinearLayout
+                android:id="@+id/previewPanel"
+                android:layout_width="320dp"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/previewView"
+                    android:layout_width="320dp"
+                    android:layout_height="180dp"
+                    android:background="#000000"
+                    android:focusable="false"
+                    app:resize_mode="fit"
+                    app:show_buffering="always"
+                    app:use_controller="false" />
+
+                <TextView
+                    android:id="@+id/tvPreviewName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPreviewNow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/accent"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tvPreviewNext"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/text_dim"
+                    android:textSize="14sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -132,7 +183,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginLeft="300dp"
+            android:layout_marginLeft="250dp"
             android:gravity="center"
             android:padding="24dp"
             android:textColor="@color/text_dim"
@@ -145,7 +196,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK: aç   •   Basılı tut: Favori / Listem, kategoride gizle   •   ✎ kategorileri düzenle   •   ⇅ sıralama   •   ⟳ güncel liste"
+        android:text="OK: aç   •   Basılı tut: Favori / Listem, kategoride gizle   •   📅 rehber ve ✎ düzenle kategorilerin altında   •   ⇅ sıralama   •   ⟳ güncel liste"
         android:textColor="@color/text_dim"
         android:textSize="14sp" />
 </LinearLayout>

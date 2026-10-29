@@ -68,8 +68,20 @@ class EpisodesActivity : AppCompatActivity() {
                     seasonAdapter.items = seasons.map { (s, eps) -> "Sezon $s (${eps.size})" }
                     seasonAdapter.selected = 0
                     seasonAdapter.notifyDataSetChanged()
-                    showSeason(0)
-                    rvEpisodes.post { rvEpisodes.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+                    // "İzlemeye devam et"ten gelindiyse o bölümün sezonunu aç ve bölümü başlat
+                    val playKey = intent.getStringExtra("playKey")
+                    intent.removeExtra("playKey")
+                    val si = seasons.indexOfFirst { (_, eps) -> eps.any { it.key == playKey } }
+                    val season = if (si >= 0) si else firstUnfinishedSeason()
+                    seasonAdapter.selected = season
+                    seasonAdapter.notifyDataSetChanged()
+                    showSeason(season)
+                    val ep = if (si >= 0) episodeAdapter.items.indexOfFirst { it.key == playKey }
+                    else episodeAdapter.items.indexOfFirst { !prefs.isWatched(it.key) }.coerceAtLeast(0)
+                    rvSeasons.scrollToPosition(season)
+                    rvEpisodes.scrollToPosition(ep.coerceAtLeast(0))
+                    rvEpisodes.post { rvEpisodes.findViewHolderForAdapterPosition(ep.coerceAtLeast(0))?.itemView?.requestFocus() }
+                    if (si >= 0 && ep >= 0) play(ep)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -87,15 +99,26 @@ class EpisodesActivity : AppCompatActivity() {
         if (::episodeAdapter.isInitialized) episodeAdapter.notifyDataSetChanged()
     }
 
+    /** İzlenmemiş bölümü olan ilk sezon (hepsi izlendiyse ilk sezon) */
+    private fun firstUnfinishedSeason(): Int =
+        seasons.indexOfFirst { (_, eps) -> eps.any { !prefs.isWatched(it.key) } }.coerceAtLeast(0)
+
     private fun showSeason(i: Int) {
         episodeAdapter.items = seasons.getOrNull(i)?.second ?: emptyList()
         rvEpisodes.scrollToPosition(0)
     }
 
     private fun play(pos: Int) {
-        if (pos < 0) return
-        Repo.playlist = episodeAdapter.items
-        startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", pos).putExtra("vod", true))
+        val ep = episodeAdapter.items.getOrNull(pos) ?: return
+        // Tüm sezonlar tek listede: bölüm bitince sonraki (sezon sonunda bir sonraki sezon) başlar
+        val series = intent.getStringExtra("name") ?: ""
+        val seriesId = intent.getStringExtra("seriesId") ?: ""
+        val all = seasons.flatMap { (season, eps) ->
+            eps.map { it.copy(name = "$series – S$season • ${it.name}", categoryId = "series:$seriesId") }
+        }
+        val start = all.indexOfFirst { it.key == ep.key }.coerceAtLeast(0)
+        Repo.playlist = all
+        startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", start).putExtra("vod", true))
     }
 
     private fun toggleFavorite(pos: Int) {

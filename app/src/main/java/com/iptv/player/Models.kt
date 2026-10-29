@@ -102,6 +102,8 @@ class Prefs(context: Context) {
     companion object {
         const val FAV = "favs"
         const val LIST = "mylist"
+        /** Yarım kalan filmler / bölümler */
+        const val CONT = "continue"
     }
 
     private val cache = HashMap<String, MutableList<Channel>>()
@@ -142,7 +144,11 @@ class Prefs(context: Context) {
 
     /** Listede yanında görünen işaretler */
     fun badge(key: String): String = buildString {
-        if (contains(LIST, key)) append("☰")
+        if (isWatched(key)) append("✓")
+        if (contains(LIST, key)) {
+            if (isNotEmpty()) append("  ")
+            append("☰")
+        }
         if (contains(FAV, key)) {
             if (isNotEmpty()) append("  ")
             append("★")
@@ -223,18 +229,52 @@ class Prefs(context: Context) {
         sp.edit().putString("lastcat_$section", id).apply()
     }
 
-    // ---------- Kaldığın yer (filmler / bölümler) ----------
+    // ---------- Kaldığın yer, izlemeye devam et, izlendi ----------
 
     fun position(key: String): Long = pos.getLong(key, 0L)
 
-    fun savePosition(key: String, positionMs: Long, durationMs: Long) {
-        val e = pos.edit()
-        // İlk 30 sn ve son 3 dk kaydedilmez (bitti sayılır)
-        if (positionMs < 30_000 || (durationMs > 0 && durationMs - positionMs < 180_000)) {
-            e.remove(key)
-        } else {
-            e.putLong(key, positionMs)
+    fun resetPosition(key: String) {
+        pos.edit().remove(key).apply()
+        removeFrom(CONT, key)
+    }
+
+    /**
+     * Film / bölüm konumunu kaydeder.
+     * İlk 30 sn kaydedilmez; %90'ı ya da son 3 dk'sı izlendiyse "izlendi" sayılır.
+     */
+    fun savePosition(c: Channel, positionMs: Long, durationMs: Long) {
+        val finished = durationMs > 0 &&
+            (durationMs - positionMs < 180_000 || positionMs >= durationMs * 0.9)
+        when {
+            finished -> {
+                pos.edit().remove(c.key).apply()
+                removeFrom(CONT, c.key)
+                setWatched(c.key)
+            }
+            positionMs < 30_000 -> Unit
+            else -> {
+                pos.edit().putLong(c.key, positionMs).apply()
+                val list = items(CONT).filter { it.key != c.key }.toMutableList()
+                list.add(0, c)
+                save(CONT, list.take(40).toMutableList())
+            }
         }
-        e.apply()
+    }
+
+    private fun removeFrom(col: String, key: String) {
+        val list = items(col)
+        if (list.any { it.key == key }) save(col, list.filter { it.key != key }.toMutableList())
+    }
+
+    private var watchedCache: MutableSet<String>? = null
+
+    private fun watched(): MutableSet<String> =
+        watchedCache ?: (sp.getStringSet("watched", emptySet())?.toMutableSet() ?: HashSet()).also { watchedCache = it }
+
+    fun isWatched(key: String) = watched().contains(key)
+
+    fun setWatched(key: String) {
+        val set = watched()
+        if (set.add(key)) sp.edit().putStringSet("watched", HashSet(set)).apply()
     }
 }

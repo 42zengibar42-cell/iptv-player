@@ -375,8 +375,8 @@ object Repo {
         return null
     }
 
-    suspend fun shortEpg(a: Account, streamId: String): List<EpgItem> {
-        val o = JSONObject(Net.get(api(a, "get_short_epg", "&stream_id=$streamId&limit=2")))
+    suspend fun shortEpg(a: Account, streamId: String, limit: Int = 2): List<EpgItem> {
+        val o = JSONObject(Net.get(api(a, "get_short_epg", "&stream_id=$streamId&limit=$limit")))
         val arr = o.optJSONArray("epg_listings") ?: return emptyList()
         val out = ArrayList<EpgItem>()
         for (i in 0 until arr.length()) {

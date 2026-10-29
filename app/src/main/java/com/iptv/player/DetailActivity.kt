@@ -128,7 +128,7 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun play(fromStart: Boolean) {
-        if (fromStart) prefs.savePosition(c.key, 0, 0)
+        if (fromStart) prefs.resetPosition(c.key)
         Repo.playlist = listOf(c)
         startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", 0).putExtra("vod", true))
     }

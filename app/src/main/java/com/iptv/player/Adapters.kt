@@ -56,7 +56,11 @@ class ChannelAdapter(
     private val onLongClick: (Int) -> Unit,
     private val onLeft: () -> Unit,
     private val badge: (Channel) -> String,
+    private val onFocus: ((Int) -> Unit)? = null,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
+
+    /** Genel aramada numara yerine türü göster (TV / Film / Dizi) */
+    var showKind = false
 
     var items: List<Channel> = emptyList()
         set(v) {
@@ -78,7 +82,11 @@ class ChannelAdapter(
 
     override fun onBindViewHolder(h: VH, position: Int) {
         val c = items[position]
-        h.num.text = (position + 1).toString()
+        h.num.text = if (showKind) when (c.kind) {
+            Kind.LIVE -> "TV"
+            Kind.MOVIE -> "Film"
+            else -> "Dizi"
+        } else (position + 1).toString()
         h.name.text = c.name
         h.fav.text = badge(c)
         if (c.logo == null) {
@@ -92,6 +100,9 @@ class ChannelAdapter(
             }
         }
         h.itemView.setOnClickListener { onClick(h.bindingAdapterPosition) }
+        h.itemView.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) onFocus?.invoke(h.bindingAdapterPosition)
+        }
         h.itemView.setOnLongClickListener {
             onLongClick(h.bindingAdapterPosition)
             true

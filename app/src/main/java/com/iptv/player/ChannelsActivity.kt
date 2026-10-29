@@ -23,6 +23,8 @@ class ChannelsActivity : AppCompatActivity() {
         const val TAB_LIST = "list"
         const val ALL = "__all__"
         const val EDIT = "__edit__"
+        const val CONT = "__cont__"
+        const val GUIDE = "__guide__"
     }
 
     private lateinit var prefs: Prefs
@@ -38,6 +40,16 @@ class ChannelsActivity : AppCompatActivity() {
     private lateinit var chAdapter: ChannelAdapter
     private lateinit var tabs: Map<String, Button>
     private lateinit var btnSort: Button
+    private lateinit var previewPanel: LinearLayout
+    private lateinit var tvPreviewName: TextView
+    private lateinit var tvPreviewNow: TextView
+    private lateinit var tvPreviewNext: TextView
+    private var preview: PreviewPlayer? = null
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var previewEpgJob: Job? = null
+    private var searchJob: Job? = null
+    private var lastFocusedPos = -1
+    private val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
 
     /** Kind.LIVE / Kind.MOVIE / Kind.SERIES / TAB_FAV */
     private var tab = Kind.LIVE
@@ -71,6 +83,11 @@ class ChannelsActivity : AppCompatActivity() {
         loading = findViewById(R.id.loading)
         tvLoading = findViewById(R.id.tvLoading)
         tvEmpty = findViewById(R.id.tvEmpty)
+        previewPanel = findViewById(R.id.previewPanel)
+        tvPreviewName = findViewById(R.id.tvPreviewName)
+        tvPreviewNow = findViewById(R.id.tvPreviewNow)
+        tvPreviewNext = findViewById(R.id.tvPreviewNext)
+        preview = PreviewPlayer(this, findViewById(R.id.previewView))
 
         catAdapter = CategoryAdapter(onLongClick = ::categoryMenu, onClick = ::categoryClick) { applyFilter() }
         rvCategories.layoutManager = LinearLayoutManager(this)
@@ -82,6 +99,7 @@ class ChannelsActivity : AppCompatActivity() {
             onLongClick = ::toggleFavorite,
             onLeft = ::focusSelectedCategory,
             badge = { prefs.badge(it.key) },
+            onFocus = ::onChannelFocus,
         )
         rvChannels.layoutManager = LinearLayoutManager(this)
         rvChannels.itemAnimator = null
@@ -105,6 +123,58 @@ class ChannelsActivity : AppCompatActivity() {
         }
 
         showTab(Kind.LIVE, focusList = true)
+        Updater.autoCheck(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopPreview()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    // ---------- Kanal önizleme ----------
+
+    private val startPreview = Runnable {
+        val c = chAdapter.items.getOrNull(lastFocusedPos) ?: return@Runnable
+        if (c.kind != Kind.LIVE || previewPanel.visibility != View.VISIBLE) return@Runnable
+        preview?.play(c.url)
+        tvPreviewName.text = c.name
+        tvPreviewNow.text = ""
+        tvPreviewNext.text = ""
+        previewEpgJob?.cancel()
+        if (account.isXtream && c.key.startsWith("x:")) {
+            previewEpgJob = lifecycleScope.launch {
+                try {
+                    val list = Repo.shortEpg(account, c.streamId)
+                    list.getOrNull(0)?.let {
+                        tvPreviewNow.text = "Şimdi ${timeFmt.format(java.util.Date(it.start))}  ${it.title}"
+                    }
+                    list.getOrNull(1)?.let {
+                        tvPreviewNext.text = "Sonra ${timeFmt.format(java.util.Date(it.start))}  ${it.title}"
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                }
+            }
+        }
+    }
+
+    private fun onChannelFocus(pos: Int) {
+        lastFocusedPos = pos
+        if (previewPanel.visibility != View.VISIBLE) return
+        handler.removeCallbacks(startPreview)
+        handler.postDelayed(startPreview, 700)
+    }
+
+    private fun stopPreview() {
+        handler.removeCallbacks(startPreview)
+        previewEpgJob?.cancel()
+        preview?.release()
     }
 
     override fun onResume() {
@@ -116,7 +186,21 @@ class ChannelsActivity : AppCompatActivity() {
             if (!isCollection) rebuildSection()
             return
         }
-        if (isCollection) refreshCollection() else chAdapter.notifyDataSetChanged()
+        if (isCollection) {
+            refreshCollection()
+        } else if ((tab == Kind.MOVIE || tab == Kind.SERIES) && etSearch.text.isBlank()) {
+            // "İzlemeye devam et" listesi değişmiş olabilir
+            val pos = lastFocusedPos
+            rebuildSection(focus = false)
+            if (pos >= 0) rvChannels.post {
+                val p = pos.coerceAtMost(chAdapter.itemCount - 1)
+                rvChannels.scrollToPosition(p.coerceAtLeast(0))
+                rvChannels.post { rvChannels.findViewHolderForAdapterPosition(p)?.itemView?.requestFocus() }
+            }
+            return
+        } else {
+            chAdapter.notifyDataSetChanged()
+        }
         // Oynatıcıdan dönünce son izlenen kanala git
         val i = Repo.lastIndex
         if (tab == Kind.LIVE && i >= 0 && Repo.playlist === chAdapter.items && i < chAdapter.itemCount) {
@@ -129,6 +213,12 @@ class ChannelsActivity : AppCompatActivity() {
         tab = key
         tabs.forEach { (k, b) -> b.isActivated = k == key }
         btnSort.text = sortLabel()
+        stopPreview()
+        previewPanel.visibility = if (key == Kind.LIVE) View.VISIBLE else View.GONE
+        tvPreviewName.text = "Bir kanalın üzerine gel, burada önizlemesi oynar."
+        tvPreviewNow.text = ""
+        tvPreviewNext.text = ""
+        lastFocusedPos = -1
         tvEmpty.visibility = View.GONE
         loadJob?.cancel()
         loading.visibility = View.GONE
@@ -201,6 +291,12 @@ class ChannelsActivity : AppCompatActivity() {
     private fun buildCategories(focusList: Boolean, categories: List<Category> = emptyList()) {
         val ids = ArrayList<String>()
         val titles = ArrayList<String>()
+        if (!isCollection) {
+            val n = continueItems().size
+            if (n > 0) {
+                ids.add(CONT); titles.add("▶ İzlemeye devam et ($n)")
+            }
+        }
         ids.add(ALL); titles.add("Tümü (${sectionItems.size})")
         if (isCollection) {
             val counts = sectionItems.groupingBy {
@@ -217,6 +313,9 @@ class ChannelsActivity : AppCompatActivity() {
                 ids.add(c.id)
                 titles.add("${c.name} ($n)")
             }
+            if (tab == Kind.LIVE && account.isXtream) {
+                ids.add(GUIDE); titles.add("📅 TV rehberi")
+            }
             ids.add(EDIT)
             titles.add(
                 when {
@@ -229,7 +328,10 @@ class ChannelsActivity : AppCompatActivity() {
         catIds = ids
         catAdapter.items = titles
         val last = if (isCollection) -1 else ids.indexOf(prefs.lastCategory(tab))
-        catAdapter.selected = if (last > 0 && ids[last] != EDIT) last else 0
+        catAdapter.selected = when {
+            last >= 0 && ids[last] != EDIT && ids[last] != GUIDE -> last
+            else -> ids.indexOf(ALL).coerceAtLeast(0)
+        }
         catAdapter.notifyDataSetChanged()
         rvCategories.scrollToPosition(catAdapter.selected)
         applyFilter()
@@ -243,10 +345,26 @@ class ChannelsActivity : AppCompatActivity() {
             return
         }
         val q = etSearch.text.toString().trim()
+        // 2+ harf: tüm bölümlerde (canlı, film, dizi) ara
+        if (q.length >= 2 && !isCollection) {
+            ensureAllLoaded()
+            chAdapter.showKind = true
+            chAdapter.items = sorted(searchAll(q))
+            rvChannels.scrollToPosition(0)
+            showEmptyIfNeeded()
+            return
+        }
+        chAdapter.showKind = false
         val id = catIds.getOrElse(catAdapter.selected) { ALL }
-        if (!isCollection && id != EDIT) prefs.setLastCategory(tab, id)
+        if (!isCollection && id != EDIT && id != GUIDE) prefs.setLastCategory(tab, id)
+        if (id == CONT) {
+            chAdapter.items = continueItems()
+            rvChannels.scrollToPosition(0)
+            showEmptyIfNeeded()
+            return
+        }
         var list = when {
-            id == EDIT && q.isEmpty() -> emptyList()
+            (id == EDIT || id == GUIDE) && q.isEmpty() -> emptyList()
             id == ALL -> sectionItems
             isCollection && id == Kind.SERIES -> sectionItems.filter { it.kind == Kind.SERIES || it.kind == Kind.EPISODE }
             isCollection -> sectionItems.filter { it.kind == id }
@@ -266,7 +384,9 @@ class ChannelsActivity : AppCompatActivity() {
         }
         val q = etSearch.text.toString().trim()
         tvEmpty.text = when {
+            q.length >= 2 && searchJob?.isActive == true -> "Aranıyor… (film ve dizi listeleri ilk seferde yükleniyor)"
             q.isNotEmpty() -> "\"$q\" için sonuç bulunamadı."
+            catIds.getOrNull(catAdapter.selected) == GUIDE -> "OK'a bas: son seçtiğin kategorinin TV rehberini aç."
             catIds.getOrNull(catAdapter.selected) == EDIT -> "OK'a bas: kategorileri sırala, göster veya gizle."
             tab == TAB_FAV -> "Henüz favori yok.\nBir kanal, film ya da dizinin üzerinde OK'a basılı tut → Favorilere ekle."
             tab == TAB_LIST -> "Listen boş.\nBir film ya da dizinin üzerinde OK'a basılı tut → Listeme ekle."
@@ -290,7 +410,15 @@ class ChannelsActivity : AppCompatActivity() {
     private fun openItem(pos: Int) {
         val items = chAdapter.items
         val c = items.getOrNull(pos) ?: return
+        stopPreview()
         when {
+            c.kind == Kind.EPISODE && c.categoryId.startsWith("series:") && account.isXtream -> startActivity(
+                // Yarım kalan bölüm: dizi ekranını aç ve bölümü oradan başlat (sonraki bölüm de çalışsın)
+                Intent(this, EpisodesActivity::class.java)
+                    .putExtra("seriesId", c.categoryId.removePrefix("series:"))
+                    .putExtra("name", c.name.substringBefore(" – S"))
+                    .putExtra("playKey", c.key)
+            )
             c.isSeriesFolder -> startActivity(
                 Intent(this, EpisodesActivity::class.java)
                     .putExtra("seriesId", c.streamId)
@@ -307,7 +435,7 @@ class ChannelsActivity : AppCompatActivity() {
             }
             else -> {
                 // Canlı: ▲▼ ile listedeki diğer kanallara geçilebilsin
-                val live = if (tab == Kind.LIVE) items else items.filter { it.kind == Kind.LIVE }
+                val live = if (items.all { it.kind == Kind.LIVE }) items else items.filter { it.kind == Kind.LIVE }
                 Repo.playlist = live
                 startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", live.indexOf(c)))
             }
@@ -335,10 +463,57 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     /** Kategoriyi gizledikten / geri getirdikten sonra listeyi yeniden kur */
-    private fun rebuildSection() {
+    private fun rebuildSection(focus: Boolean = true) {
         val data = Repo.sections[tab] ?: return
         setSection(data)
-        buildCategories(focusList = true, visibleCategories())
+        buildCategories(focusList = focus, visibleCategories())
+    }
+
+    /** Bu bölümde yarım kalan filmler / bölümler */
+    private fun continueItems(): List<Channel> = when (tab) {
+        Kind.MOVIE -> prefs.items(Prefs.CONT).filter { it.kind == Kind.MOVIE }
+        Kind.SERIES -> prefs.items(Prefs.CONT).filter { it.kind == Kind.EPISODE }
+        else -> emptyList()
+    }
+
+    // ---------- Genel arama ----------
+
+    private fun searchAll(q: String): List<Channel> =
+        listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES).flatMap { k ->
+            val d = Repo.sections[k] ?: return@flatMap emptyList<Channel>()
+            val hidden = prefs.hiddenCategories(k)
+            d.items.filter { it.categoryId !in hidden && it.name.contains(q, ignoreCase = true) }
+        }
+
+    /** Aramada film / dizi listeleri henüz yüklenmediyse arka planda yükle */
+    private fun ensureAllLoaded() {
+        if (searchJob?.isActive == true) return
+        val missing = listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES).filter { Repo.sections[it] == null }
+        if (missing.isEmpty()) return
+        searchJob = lifecycleScope.launch {
+            for (k in missing) {
+                try {
+                    Repo.loadSection(account, k)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                }
+            }
+            if (etSearch.text.toString().trim().length >= 2) applyFilter()
+        }
+    }
+
+    // ---------- TV rehberi ----------
+
+    private fun openGuide() {
+        val id = prefs.lastCategory(Kind.LIVE)
+        val list = if (id == null || id == ALL || id == CONT) sectionItems
+        else sectionItems.filter { it.categoryId == id }.ifEmpty { sectionItems }
+        if (list.isEmpty()) return
+        stopPreview()
+        GuideActivity.channels = list
+        GuideActivity.title = sectionCategories.firstOrNull { it.id == id }?.name ?: "Tümü"
+        startActivity(Intent(this, GuideActivity::class.java))
     }
 
     private fun categoryMenu(pos: Int) {
@@ -360,6 +535,10 @@ class ChannelsActivity : AppCompatActivity() {
     private var editorOpened = false
 
     private fun categoryClick(pos: Int) {
+        if (catIds.getOrNull(pos) == GUIDE) {
+            openGuide()
+            return
+        }
         if (catIds.getOrNull(pos) != EDIT || Repo.sections[tab] == null) return
         val section = tab
         askPin(this, prefs) {

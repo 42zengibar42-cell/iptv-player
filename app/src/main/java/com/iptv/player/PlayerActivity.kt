@@ -1,5 +1,6 @@
 package com.iptv.player
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -8,16 +9,20 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -44,6 +49,8 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvEpgNext: TextView
     private lateinit var tvError: TextView
     private lateinit var tvHint: TextView
+    private lateinit var tvNumber: TextView
+    private lateinit var tvNext: TextView
     private lateinit var prefs: Prefs
 
     /** Film / dizi bölümü: sarma kontrolleri açık, ▲▼ kanal değiştirmez */
@@ -51,6 +58,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var index = 0
+    private var started = false
+    /** Son kanala dönüş için bir önceki kanal */
+    private var prevIndex = -1
     private var triedAlternative = false
     private var epgJob: Job? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -73,13 +83,15 @@ class PlayerActivity : AppCompatActivity() {
         tvEpgNext = findViewById(R.id.tvEpgNext)
         tvError = findViewById(R.id.tvError)
         tvHint = findViewById(R.id.tvHint)
+        tvNumber = findViewById(R.id.tvNumber)
+        tvNext = findViewById(R.id.tvNext)
         prefs = Prefs(this)
         vod = intent.getBooleanExtra("vod", false)
         if (vod) {
             playerView.useController = true
             playerView.controllerShowTimeoutMs = 4000
             playerView.isFocusable = true
-            tvHint.text = "OK: oynat / duraklat   •   ◀ ▶ sar   •   OK basılı tut: görüntü ayarı   •   Geri: listeye dön"
+            tvHint.text = "OK: oynat / duraklat   •   ◀ ▶ sar   •   ⚙ / CC: ses ve altyazı   •   OK basılı tut: görüntü ayarı"
         }
 
         if (Repo.playlist.isEmpty()) {
@@ -103,6 +115,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        cancelNext()
         savePosition()
         player?.release()
         player = null
@@ -132,6 +145,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun onPlayerError(error: PlaybackException) = handleError(error)
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) tvError.visibility = View.GONE
+                if (state == Player.STATE_ENDED) onEnded()
             }
         })
         playerView.player = p
@@ -140,8 +154,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun play(i: Int) {
+        cancelNext()
         val n = Repo.playlist.size
-        index = ((i % n) + n) % n
+        val newIndex = ((i % n) + n) % n
+        if (started && newIndex != index) {
+            savePosition()
+            prevIndex = index
+        }
+        started = true
+        index = newIndex
         Repo.lastIndex = index
         triedAlternative = false
         val c = Repo.playlist[index]
@@ -150,7 +171,7 @@ class PlayerActivity : AppCompatActivity() {
             val resume = prefs.position(c.key)
             if (resume > 0) {
                 player?.seekTo(resume)
-                android.widget.Toast.makeText(this, "Kaldığın yerden devam ediliyor", android.widget.Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Kaldığın yerden devam ediliyor", Toast.LENGTH_SHORT).show()
             }
         }
         showInfo(c)
@@ -222,7 +243,47 @@ class PlayerActivity : AppCompatActivity() {
         if (!vod) return
         val p = player ?: return
         val c = Repo.playlist.getOrNull(index) ?: return
-        if (p.duration > 0) prefs.savePosition(c.key, p.currentPosition, p.duration)
+        if (p.duration > 0 && p.playbackState != Player.STATE_IDLE) {
+            prefs.savePosition(c, p.currentPosition, p.duration)
+        }
+    }
+
+    // ---------- Bitince: izlendi işareti ve sonraki bölüm ----------
+
+    private var nextLeft = 0
+    private val nextTick = object : Runnable {
+        override fun run() {
+            val next = Repo.playlist.getOrNull(index + 1) ?: return cancelNext()
+            if (nextLeft <= 0) {
+                play(index + 1)
+                return
+            }
+            tvNext.text = "Sonraki bölüm:\n${next.name}\n\n$nextLeft sn içinde başlıyor\nOK: hemen başlat   •   Geri: çık"
+            tvNext.visibility = View.VISIBLE
+            nextLeft--
+            handler.postDelayed(this, 1000)
+        }
+    }
+
+    private val nextActive get() = tvNext.visibility == View.VISIBLE
+
+    private fun cancelNext() {
+        handler.removeCallbacks(nextTick)
+        tvNext.visibility = View.GONE
+    }
+
+    private fun onEnded() {
+        if (!vod) return
+        val p = player
+        val c = Repo.playlist.getOrNull(index) ?: return
+        if (p != null && p.duration > 0) prefs.savePosition(c, p.duration, p.duration)
+        if (index + 1 < Repo.playlist.size) {
+            nextLeft = 10
+            handler.removeCallbacks(nextTick)
+            handler.post(nextTick)
+        } else {
+            finish()
+        }
     }
 
     // ---------- Görüntü ayarı: OK'a basılı tut → Sığdır / Yakınlaştır / Ger ----------
@@ -246,8 +307,100 @@ class PlayerActivity : AppCompatActivity() {
         val next = (prefs.aspectMode + 1) % aspectModes.size
         prefs.aspectMode = next
         applyAspect()
-        android.widget.Toast.makeText(this, "Görüntü: ${aspectNames[next]}", android.widget.Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Görüntü: ${aspectNames[next]}", Toast.LENGTH_SHORT).show()
     }
+
+    // ---------- Ses ve altyazı seçimi ----------
+
+    private fun langName(code: String?): String? {
+        if (code.isNullOrBlank() || code == "und") return null
+        val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale("tr"))
+        return if (name.isBlank() || name.equals(code, true)) code.uppercase()
+        else name.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun trackLabel(f: Format, i: Int, audio: Boolean): String {
+        val parts = ArrayList<String>()
+        langName(f.language)?.let { parts.add(it) }
+        f.label?.takeIf { it.isNotBlank() && parts.none { p -> p.equals(it, true) } }?.let { parts.add(it) }
+        if (audio && f.channelCount > 0) parts.add(if (f.channelCount >= 6) "5.1" else if (f.channelCount == 2) "Stereo" else "${f.channelCount} kanal")
+        return if (parts.isEmpty()) "Parça ${i + 1}" else parts.joinToString(" • ")
+    }
+
+    private fun showTrackDialog() {
+        val p = player ?: return
+        val names = ArrayList<String>()
+        val actions = ArrayList<() -> Unit>()
+        var hasText = false
+        for (type in intArrayOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_TEXT)) {
+            for (g in p.currentTracks.groups) {
+                if (g.type != type) continue
+                for (i in 0 until g.length) {
+                    if (!g.isTrackSupported(i)) continue
+                    if (type == C.TRACK_TYPE_TEXT) hasText = true
+                    val selected = g.isTrackSelected(i)
+                    names.add(
+                        (if (type == C.TRACK_TYPE_AUDIO) "🔊  Ses: " else "💬  Altyazı: ") +
+                            trackLabel(g.getTrackFormat(i), i, type == C.TRACK_TYPE_AUDIO) +
+                            if (selected) "   ✓" else ""
+                    )
+                    val group = g.mediaTrackGroup
+                    actions.add {
+                        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(type, false)
+                            .setOverrideForType(TrackSelectionOverride(group, i))
+                            .build()
+                    }
+                }
+            }
+        }
+        if (hasText) {
+            val off = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+            names.add("💬  Altyazı: Kapalı" + if (off) "   ✓" else "")
+            actions.add {
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            }
+        }
+        if (names.isEmpty()) {
+            Toast.makeText(this, "Bu yayında seçilebilecek ses veya altyazı yok", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Ses ve altyazı")
+            .setItems(names.toTypedArray()) { _, which -> actions[which]() }
+            .setNegativeButton("Kapat", null)
+            .show()
+    }
+
+    // ---------- Rakamla kanal açma ----------
+
+    private val numBuffer = StringBuilder()
+    private val commitNumber = Runnable {
+        val n = numBuffer.toString().toIntOrNull() ?: 0
+        numBuffer.clear()
+        tvNumber.visibility = View.GONE
+        if (n in 1..Repo.playlist.size) play(n - 1)
+        else Toast.makeText(this, "$n numaralı kanal yok", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun digitOf(code: Int): Int = when (code) {
+        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> code - KeyEvent.KEYCODE_0
+        in KeyEvent.KEYCODE_NUMPAD_0..KeyEvent.KEYCODE_NUMPAD_9 -> code - KeyEvent.KEYCODE_NUMPAD_0
+        else -> -1
+    }
+
+    private fun typeDigit(d: Int) {
+        if (numBuffer.length >= 4) numBuffer.clear()
+        numBuffer.append(d)
+        tvNumber.text = numBuffer.toString()
+        tvNumber.visibility = View.VISIBLE
+        handler.removeCallbacks(commitNumber)
+        handler.postDelayed(commitNumber, 1500)
+    }
+
+    // ---------- Tuşlar ----------
 
     /** OK tuşu: kısa basış normal davranır, uzun basış görüntü ayarını değiştirir */
     private var okDown: KeyEvent? = null
@@ -256,7 +409,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun isOk(code: Int) = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (isOk(event.keyCode)) {
+        val code = event.keyCode
+        if (isOk(code)) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
                     if (event.repeatCount == 0) {
@@ -272,19 +426,27 @@ class PlayerActivity : AppCompatActivity() {
                     val down = okDown
                     okDown = null
                     if (okLongHandled || down == null) return true
-                    // Kısa basış: bekletilen tuşu şimdi normal şekilde işle
-                    if (vod) {
-                        infoPanel.visibility = View.GONE
-                        playerView.dispatchKeyEvent(down)
-                        playerView.dispatchKeyEvent(event)
-                    } else {
-                        Repo.playlist.getOrNull(index)?.let { showInfo(it) }
+                    // Kısa basış
+                    when {
+                        nextActive -> play(index + 1)
+                        vod -> {
+                            infoPanel.visibility = View.GONE
+                            playerView.dispatchKeyEvent(down)
+                            playerView.dispatchKeyEvent(event)
+                        }
+                        else -> Repo.playlist.getOrNull(index)?.let { showInfo(it) }
                     }
                     return true
                 }
             }
         }
-        if (vod && event.keyCode != KeyEvent.KEYCODE_BACK) {
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            (code == KeyEvent.KEYCODE_CAPTIONS || code == KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK)
+        ) {
+            showTrackDialog()
+            return true
+        }
+        if (vod && code != KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN) infoPanel.visibility = View.GONE
             if (playerView.dispatchKeyEvent(event)) return true
         }
@@ -293,6 +455,11 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (vod) return super.onKeyDown(keyCode, event)
+        val d = digitOf(keyCode)
+        if (d >= 0) {
+            typeDigit(d)
+            return true
+        }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                 play(index - 1); return true
@@ -300,7 +467,15 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_UP -> {
                 play(index + 1); return true
             }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_INFO -> {
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_LAST_CHANNEL -> {
+                if (prevIndex in Repo.playlist.indices) play(prevIndex)
+                else Toast.makeText(this, "Henüz önceki kanal yok", Toast.LENGTH_SHORT).show()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                showTrackDialog(); return true
+            }
+            KeyEvent.KEYCODE_INFO -> {
                 Repo.playlist.getOrNull(index)?.let { showInfo(it) }
                 return true
             }
