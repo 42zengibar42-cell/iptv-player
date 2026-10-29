@@ -73,7 +73,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="▲ ▼ kanal değiştir   •   OK bilgi   •   Geri: listeye dön"
+            android:text="▲ ▼ kanal değiştir   •   OK bilgi   •   OK basılı tut: görüntü ayarı   •   Geri: listeye dön"
             android:textColor="@color/text_dim"
             android:textSize="13sp" />
     </LinearLayout>

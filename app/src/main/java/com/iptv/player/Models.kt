@@ -203,6 +203,13 @@ class Prefs(context: Context) {
             sp.edit().apply { if (v == null) remove("pin") else putString("pin", v) }.apply()
         }
 
+    /** Görüntü: 0 = sığdır, 1 = yakınlaştır, 2 = ger */
+    var aspectMode: Int
+        get() = sp.getInt("aspect", 0)
+        set(v) {
+            sp.edit().putInt("aspect", v).apply()
+        }
+
     /** 0 = sağlayıcı sırası, 1 = A–Z, 2 = en yeni */
     fun sortMode(section: String): Int = sp.getInt("sort_$section", 0)
 

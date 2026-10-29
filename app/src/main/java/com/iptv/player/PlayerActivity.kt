@@ -25,6 +25,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -78,7 +79,7 @@ class PlayerActivity : AppCompatActivity() {
             playerView.useController = true
             playerView.controllerShowTimeoutMs = 4000
             playerView.isFocusable = true
-            tvHint.text = "OK: oynat / duraklat   •   ◀ ▶ sar   •   Geri: listeye dön"
+            tvHint.text = "OK: oynat / duraklat   •   ◀ ▶ sar   •   OK basılı tut: görüntü ayarı   •   Geri: listeye dön"
         }
 
         if (Repo.playlist.isEmpty()) {
@@ -134,6 +135,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         })
         playerView.player = p
+        applyAspect()
         player = p
     }
 
@@ -223,7 +225,65 @@ class PlayerActivity : AppCompatActivity() {
         if (p.duration > 0) prefs.savePosition(c.key, p.currentPosition, p.duration)
     }
 
+    // ---------- Görüntü ayarı: OK'a basılı tut → Sığdır / Yakınlaştır / Ger ----------
+
+    private val aspectModes = intArrayOf(
+        AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        AspectRatioFrameLayout.RESIZE_MODE_FILL,
+    )
+    private val aspectNames = arrayOf(
+        "Sığdır (orijinal)",
+        "Yakınlaştır (tam ekran, kenarlar kesilir)",
+        "Ger (tam ekran, görüntü yassılaşır)",
+    )
+
+    private fun applyAspect() {
+        playerView.resizeMode = aspectModes[prefs.aspectMode.coerceIn(0, 2)]
+    }
+
+    private fun cycleAspect() {
+        val next = (prefs.aspectMode + 1) % aspectModes.size
+        prefs.aspectMode = next
+        applyAspect()
+        android.widget.Toast.makeText(this, "Görüntü: ${aspectNames[next]}", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    /** OK tuşu: kısa basış normal davranır, uzun basış görüntü ayarını değiştirir */
+    private var okDown: KeyEvent? = null
+    private var okLongHandled = false
+
+    private fun isOk(code: Int) = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (isOk(event.keyCode)) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (event.repeatCount == 0) {
+                        okDown = KeyEvent(event)
+                        okLongHandled = false
+                    } else if (!okLongHandled && event.repeatCount >= 1) {
+                        okLongHandled = true
+                        cycleAspect()
+                    }
+                    return true
+                }
+                KeyEvent.ACTION_UP -> {
+                    val down = okDown
+                    okDown = null
+                    if (okLongHandled || down == null) return true
+                    // Kısa basış: bekletilen tuşu şimdi normal şekilde işle
+                    if (vod) {
+                        infoPanel.visibility = View.GONE
+                        playerView.dispatchKeyEvent(down)
+                        playerView.dispatchKeyEvent(event)
+                    } else {
+                        Repo.playlist.getOrNull(index)?.let { showInfo(it) }
+                    }
+                    return true
+                }
+            }
+        }
         if (vod && event.keyCode != KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN) infoPanel.visibility = View.GONE
             if (playerView.dispatchKeyEvent(event)) return true
