@@ -45,6 +45,16 @@ object Repo {
     var playlist: List<Channel> = emptyList()
     var lastIndex: Int = -1
 
+    /** Köşede (küçük pencerede) oynayan ikinci kanal */
+    var pipChannel: Channel? = null
+
+    /** Son tam ekran izlenen canlı liste ve kanal (köşe açılınca geri dönmek için) */
+    var liveList: List<Channel> = emptyList()
+    var liveIndex: Int = -1
+
+    /** Aboneliğin aynı anda izin verdiği bağlantı sayısı (bilinmiyorsa null) */
+    var maxConnections: Int? = null
+
     /** "ornek.com:8080/" gibi girişleri "http://ornek.com:8080" yapar */
     fun normalizeServer(input: String): String {
         var s = input.trim()
@@ -75,6 +85,17 @@ object Repo {
         val status = info.optString("status", "")
         if (status.isNotEmpty() && !status.equals("Active", true)) {
             throw IOException("Hesap durumu: $status")
+        }
+    }
+
+    suspend fun loadMaxConnections(a: Account): Int? {
+        maxConnections?.let { return it }
+        if (!a.isXtream) return null
+        return try {
+            JSONObject(Net.get(api(a, null))).optJSONObject("user_info")
+                ?.optString("max_connections")?.toIntOrNull()?.also { maxConnections = it }
+        } catch (e: Exception) {
+            null
         }
     }
 

@@ -31,6 +31,43 @@
         android:textStyle="bold"
         android:visibility="gone" />
 
+    <FrameLayout
+        android:id="@+id/pipBox"
+        android:layout_width="384dp"
+        android:layout_height="216dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="32dp"
+        android:background="@color/accent"
+        android:padding="3dp"
+        android:visibility="gone">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/pipView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:focusable="false"
+            app:resize_mode="fit"
+            app:show_buffering="always"
+            app:surface_type="texture_view"
+            app:use_controller="false" />
+
+        <TextView
+            android:id="@+id/tvPipName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:background="#B3000000"
+            android:ellipsize="end"
+            android:paddingLeft="8dp"
+            android:paddingTop="4dp"
+            android:paddingRight="8dp"
+            android:paddingBottom="4dp"
+            android:singleLine="true"
+            android:textColor="@color/text"
+            android:textSize="14sp" />
+    </FrameLayout>
+
     <TextView
         android:id="@+id/tvNext"
         android:layout_width="wrap_content"
@@ -103,7 +140,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="▲ ▼ kanal   •   0–9 kanal no   •   ◀ son kanal   •   ▶ ses / altyazı   •   OK bilgi   •   OK basılı tut: görüntü"
+            android:text="▲ ▼ kanal   •   0–9 kanal no   •   ◀ son kanal   •   ▶ ses, altyazı, köşe kanalı   •   OK bilgi   •   OK basılı tut: görüntü"
             android:textColor="@color/text_dim"
             android:textSize="13sp" />
     </LinearLayout>

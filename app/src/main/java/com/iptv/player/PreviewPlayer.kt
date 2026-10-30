@@ -20,6 +20,13 @@ import androidx.media3.ui.PlayerView
 class PreviewPlayer(private val context: Context, private val view: PlayerView) {
 
     private var player: ExoPlayer? = null
+
+    /** 0 = sessiz, 1 = sesli */
+    var volume: Float = 1f
+        set(v) {
+            field = v
+            player?.volume = v
+        }
     private var currentUrl: String? = null
     private var triedAlternative = false
 
@@ -37,6 +44,7 @@ class PreviewPlayer(private val context: Context, private val view: PlayerView) 
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http), extractors))
             .build()
         p.playWhenReady = true
+        p.volume = volume
         p.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 val url = currentUrl ?: return

@@ -6,18 +6,26 @@ import android.text.InputType
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 /** OK'a basılı tutunca açılan menü: Favorilere / Listeme ekle-çıkar */
 fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onChanged: () -> Unit) {
     val fav = prefs.contains(Prefs.FAV, c.key)
     val inList = prefs.contains(Prefs.LIST, c.key)
-    val options = arrayOf(
+    val options = arrayListOf(
         if (fav) "★  Favorilerden çıkar" else "★  Favorilere ekle",
         if (inList) "☰  Listemden çıkar" else "☰  Listeme ekle",
     )
+    val live = c.kind == Kind.LIVE
+    if (live) options.add("📺  Köşede aç (ikinci kanal)")
     AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         .setTitle(c.name)
-        .setItems(options) { _, which ->
+        .setItems(options.toTypedArray()) { _, which ->
+            if (which == 2) {
+                openInCorner(activity, prefs, c)
+                return@setItems
+            }
             val col = if (which == 0) Prefs.FAV else Prefs.LIST
             val added = prefs.toggle(col, c)
             val where = if (col == Prefs.FAV) "Favoriler" else "Listem"
@@ -115,4 +123,36 @@ fun setNewPin(activity: Activity, prefs: Prefs, onDone: () -> Unit) {
         .setNegativeButton("Vazgeç", null)
         .create()
         .showWithKeyboard(input)
+}
+
+/** Seçilen kanalı köşeye koyar ve son izlenen kanalı tam ekranda açar */
+fun openInCorner(activity: Activity, prefs: Prefs, c: Channel) {
+    val main = Repo.liveList.getOrNull(Repo.liveIndex)
+    if (main == null || main.key == c.key) {
+        Repo.pipChannel = c
+        Toast.makeText(activity, "Şimdi tam ekranda izlemek istediğin kanalı aç; ${c.name} köşede oynayacak.", Toast.LENGTH_LONG).show()
+        return
+    }
+    fun go() {
+        Repo.pipChannel = c
+        Repo.playlist = Repo.liveList
+        activity.startActivity(
+            android.content.Intent(activity, PlayerActivity::class.java).putExtra("index", Repo.liveIndex)
+        )
+    }
+    val acc = prefs.account
+    if (acc == null || !acc.isXtream) return go()
+    (activity as? androidx.lifecycle.LifecycleOwner)?.lifecycleScope?.launch {
+        val max = Repo.loadMaxConnections(acc)
+        if (max != null && max < 2) {
+            AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Aboneliğin tek bağlantılı")
+                .setMessage("Sağlayıcın aynı anda sadece $max yayına izin veriyor. İkinci kanal açılmayabilir ya da ana kanal donabilir.\n\nYine de denensin mi?")
+                .setPositiveButton("Dene") { _, _ -> go() }
+                .setNegativeButton("Vazgeç", null)
+                .show()
+        } else {
+            go()
+        }
+    } ?: go()
 }

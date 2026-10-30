@@ -52,6 +52,11 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvNumber: TextView
     private lateinit var tvNext: TextView
     private lateinit var prefs: Prefs
+    private lateinit var pipBox: View
+    private lateinit var tvPipName: TextView
+    private var pip: PreviewPlayer? = null
+    /** true: ses köşedeki kanaldan gelir */
+    private var pipAudio = false
 
     /** Film / dizi bölümü: sarma kontrolleri açık, ▲▼ kanal değiştirmez */
     private var vod = false
@@ -85,6 +90,8 @@ class PlayerActivity : AppCompatActivity() {
         tvHint = findViewById(R.id.tvHint)
         tvNumber = findViewById(R.id.tvNumber)
         tvNext = findViewById(R.id.tvNext)
+        pipBox = findViewById(R.id.pipBox)
+        tvPipName = findViewById(R.id.tvPipName)
         prefs = Prefs(this)
         vod = intent.getBooleanExtra("vod", false)
         if (vod) {
@@ -111,6 +118,7 @@ class PlayerActivity : AppCompatActivity() {
         if (Repo.playlist.isEmpty()) return
         initPlayer()
         play(index)
+        startPip()
     }
 
     override fun onStop() {
@@ -119,6 +127,8 @@ class PlayerActivity : AppCompatActivity() {
         savePosition()
         player?.release()
         player = null
+        pip?.release()
+        pip = null
     }
 
     override fun onDestroy() {
@@ -164,6 +174,10 @@ class PlayerActivity : AppCompatActivity() {
         started = true
         index = newIndex
         Repo.lastIndex = index
+        if (!vod) {
+            Repo.liveList = Repo.playlist
+            Repo.liveIndex = index
+        }
         triedAlternative = false
         val c = Repo.playlist[index]
         start(c.url)
@@ -310,6 +324,77 @@ class PlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Görüntü: ${aspectNames[next]}", Toast.LENGTH_SHORT).show()
     }
 
+    // ---------- Köşedeki ikinci kanal ----------
+
+    private val pipActive get() = pipBox.visibility == View.VISIBLE
+
+    private fun startPip() {
+        val c = Repo.pipChannel
+        if (vod || c == null) {
+            pipBox.visibility = View.GONE
+            return
+        }
+        val p = pip ?: PreviewPlayer(this, findViewById(R.id.pipView)).also { pip = it }
+        p.volume = if (pipAudio) 1f else 0f
+        player?.volume = if (pipAudio) 0f else 1f
+        p.play(c.url)
+        tvPipName.text = (if (pipAudio) "🔊 " else "🔇 ") + c.name
+        pipBox.visibility = View.VISIBLE
+    }
+
+    private fun closePip() {
+        Repo.pipChannel = null
+        pip?.release()
+        pip = null
+        pipAudio = false
+        player?.volume = 1f
+        pipBox.visibility = View.GONE
+        Toast.makeText(this, "Köşedeki kanal kapatıldı", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun toggleAudio() {
+        pipAudio = !pipAudio
+        startPip()
+        Toast.makeText(this, if (pipAudio) "Ses: köşedeki kanal" else "Ses: ana kanal", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Ana kanal köşeye, köşedeki kanal tam ekrana */
+    private fun swapPip() {
+        val corner = Repo.pipChannel ?: return
+        val main = Repo.playlist.getOrNull(index) ?: return
+        Repo.pipChannel = main
+        var i = Repo.playlist.indexOfFirst { it.key == corner.key }
+        if (i < 0) {
+            Repo.playlist = Repo.playlist.toMutableList().apply { add(index + 1, corner) }
+            i = index + 1
+        }
+        pip?.release()
+        pip = null
+        play(i)
+        startPip()
+    }
+
+    private fun showPipMenu() {
+        val items = arrayOf(
+            "⇄  Yer değiştir",
+            if (pipAudio) "🔊  Sesi ana kanala ver" else "🔊  Sesi köşedeki kanala ver",
+            "✕  Köşedeki kanalı kapat",
+            "💬  Ses ve altyazı",
+        )
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Köşede: ${Repo.pipChannel?.name ?: ""}")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> swapPip()
+                    1 -> toggleAudio()
+                    2 -> closePip()
+                    else -> showTrackDialog()
+                }
+            }
+            .setNegativeButton("Kapat", null)
+            .show()
+    }
+
     // ---------- Ses ve altyazı seçimi ----------
 
     private fun langName(code: String?): String? {
@@ -440,6 +525,10 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        if (code == KeyEvent.KEYCODE_BACK && !vod && pipActive && !nextActive) {
+            if (event.action == KeyEvent.ACTION_UP) closePip()
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN &&
             (code == KeyEvent.KEYCODE_CAPTIONS || code == KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK)
         ) {
@@ -473,7 +562,8 @@ class PlayerActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                showTrackDialog(); return true
+                if (pipActive) showPipMenu() else showTrackDialog()
+                return true
             }
             KeyEvent.KEYCODE_INFO -> {
                 Repo.playlist.getOrNull(index)?.let { showInfo(it) }
