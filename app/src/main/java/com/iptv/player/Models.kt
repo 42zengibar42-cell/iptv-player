@@ -11,8 +11,17 @@ data class Account(
     val username: String,
     val password: String,
     val m3uUrl: String,
+    val id: String = "",
 ) {
     val isXtream get() = type == TYPE_XTREAM
+
+    /** Listede görünen ad */
+    val title: String
+        get() = name.ifBlank { if (isXtream) username else "M3U listesi" }
+
+    fun toJson(): JSONObject = JSONObject()
+        .put("id", id).put("type", type).put("name", name).put("server", server)
+        .put("user", username).put("pass", password).put("m3u", m3uUrl)
 
     companion object {
         const val TYPE_XTREAM = "xtream"
@@ -66,40 +75,109 @@ data class Channel(
 
 data class EpgItem(val title: String, val start: Long, val end: Long)
 
-class Prefs(context: Context) {
-    private val sp = context.getSharedPreferences("iptv", Context.MODE_PRIVATE)
-    private val pos = context.getSharedPreferences("positions", Context.MODE_PRIVATE)
+/** Kayıtlı hesaplar ve hangisinin açık olduğu */
+object Accounts {
+    private fun store(ctx: Context) = ctx.applicationContext.getSharedPreferences("accounts", Context.MODE_PRIVATE)
 
-    var account: Account?
-        get() {
-            val type = sp.getString("type", null) ?: return null
-            return Account(
-                type,
-                sp.getString("name", "") ?: "",
-                sp.getString("server", "") ?: "",
-                sp.getString("user", "") ?: "",
-                sp.getString("pass", "") ?: "",
-                sp.getString("m3u", "") ?: "",
+    /** İlk sürümlerde tek hesap "iptv" dosyasında duruyordu: onu 1 numaralı hesap yap */
+    private fun migrate(ctx: Context) {
+        val st = store(ctx)
+        if (st.contains("list")) return
+        val old = ctx.applicationContext.getSharedPreferences("iptv", Context.MODE_PRIVATE)
+        val arr = JSONArray()
+        val type = old.getString("type", null)
+        if (type != null) {
+            arr.put(
+                Account(
+                    type,
+                    old.getString("name", "") ?: "",
+                    old.getString("server", "") ?: "",
+                    old.getString("user", "") ?: "",
+                    old.getString("pass", "") ?: "",
+                    old.getString("m3u", "") ?: "",
+                    id = "1",
+                ).toJson()
             )
+            st.edit().putString("active", "1").apply()
         }
-        set(v) {
-            val e = sp.edit()
-            if (v == null) {
-                listOf("type", "name", "server", "user", "pass", "m3u").forEach { e.remove(it) }
-            } else {
-                e.putString("type", v.type)
-                    .putString("name", v.name)
-                    .putString("server", v.server)
-                    .putString("user", v.username)
-                    .putString("pass", v.password)
-                    .putString("m3u", v.m3uUrl)
+        st.edit().putString("list", arr.toString()).apply()
+    }
+
+    fun all(ctx: Context): List<Account> {
+        migrate(ctx)
+        val out = ArrayList<Account>()
+        try {
+            val arr = JSONArray(store(ctx).getString("list", "[]"))
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(
+                    Account(
+                        o.optString("type"), o.optString("name"), o.optString("server"),
+                        o.optString("user"), o.optString("pass"), o.optString("m3u"), o.optString("id"),
+                    )
+                )
             }
-            e.apply()
+        } catch (e: Exception) {
         }
+        return out
+    }
+
+    fun get(ctx: Context, id: String?): Account? = all(ctx).firstOrNull { it.id == id }
+
+    fun activeId(ctx: Context): String? {
+        val list = all(ctx)
+        val id = store(ctx).getString("active", null)
+        return if (list.any { it.id == id }) id else list.firstOrNull()?.id
+    }
+
+    fun active(ctx: Context): Account? = get(ctx, activeId(ctx))
+
+    fun setActive(ctx: Context, id: String) {
+        store(ctx).edit().putString("active", id).apply()
+    }
+
+    fun newId(ctx: Context): String =
+        ((all(ctx).mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 0) + 1).toString()
+
+    fun save(ctx: Context, a: Account) {
+        val list = all(ctx).toMutableList()
+        val i = list.indexOfFirst { it.id == a.id }
+        if (i >= 0) list[i] = a else list.add(a)
+        write(ctx, list)
+    }
+
+    /** Hesabı ve ona ait favori / liste / ayarları siler */
+    fun remove(ctx: Context, id: String) {
+        write(ctx, all(ctx).filter { it.id != id })
+        val app = ctx.applicationContext
+        app.getSharedPreferences(Prefs.dataFile(id), Context.MODE_PRIVATE).edit().clear().apply()
+        app.getSharedPreferences(Prefs.posFile(id), Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
+    private fun write(ctx: Context, list: List<Account>) {
+        val arr = JSONArray()
+        list.forEach { arr.put(it.toJson()) }
+        store(ctx).edit().putString("list", arr.toString()).apply()
+    }
+}
+
+/** Bir hesabın ayarları; her hesabın favorileri, listesi ve kategori ayarları ayrıdır */
+class Prefs(context: Context, accountId: String? = null) {
+    private val app = context.applicationContext
+    val accountId: String = accountId ?: Accounts.activeId(app) ?: "1"
+    private val sp = app.getSharedPreferences(dataFile(this.accountId), Context.MODE_PRIVATE)
+    private val pos = app.getSharedPreferences(posFile(this.accountId), Context.MODE_PRIVATE)
+
+    val account: Account?
+        get() = Accounts.get(app, accountId)
 
     // ---------- Favoriler ve Listem ----------
 
     companion object {
+        /** 1 numaralı hesap eski dosya adlarını kullanır (güncellemede veriler kaybolmasın) */
+        fun dataFile(id: String) = if (id == "1") "iptv" else "iptv_$id"
+        fun posFile(id: String) = if (id == "1") "positions" else "positions_$id"
+
         const val FAV = "favs"
         const val LIST = "mylist"
         /** Yarım kalan filmler / bölümler */

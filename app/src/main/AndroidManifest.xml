@@ -51,6 +51,11 @@
         </provider>
 
         <activity
+            android:name=".AccountsActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".GuideActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />

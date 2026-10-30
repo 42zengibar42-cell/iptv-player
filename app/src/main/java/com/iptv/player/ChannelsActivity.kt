@@ -118,8 +118,10 @@ class ChannelsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnReload).setOnClickListener { reload() }
         btnSort = findViewById(R.id.btnSort)
         btnSort.setOnClickListener { cycleSort() }
-        findViewById<Button>(R.id.btnAccount).setOnClickListener {
-            startActivity(Intent(this, LoginActivity::class.java))
+        findViewById<Button>(R.id.btnAccount).apply {
+            // Birden fazla hesap varsa açık olanın adı görünsün
+            if (Accounts.all(this@ChannelsActivity).size > 1) text = "⚙ " + account.title.take(12)
+            setOnClickListener { startActivity(Intent(this@ChannelsActivity, AccountsActivity::class.java)) }
         }
 
         showTab(Kind.LIVE, focusList = true)

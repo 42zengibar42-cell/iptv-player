@@ -140,7 +140,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="▲ ▼ kanal   •   0–9 kanal no   •   ◀ son kanal   •   ▶ ses, altyazı, köşe kanalı   •   OK bilgi   •   OK basılı tut: görüntü"
+            android:text="▲ ▼ kanal   •   0–9 kanal no   •   ◀ son kanal   •   ▶ ikinci kanal, ses, altyazı   •   OK bilgi   •   OK basılı tut: görüntü"
             android:textColor="@color/text_dim"
             android:textSize="13sp" />
     </LinearLayout>

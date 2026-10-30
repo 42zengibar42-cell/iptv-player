@@ -18,12 +18,15 @@ fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onChanged: () -> 
         if (inList) "☰  Listemden çıkar" else "☰  Listeme ekle",
     )
     val live = c.kind == Kind.LIVE
-    if (live) options.add("📺  Köşede aç (ikinci kanal)")
+    if (live) {
+        options.add("📺  Köşede aç (ikinci kanal)")
+        options.add("▥  Yan yana aç (ikinci kanal)")
+    }
     AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         .setTitle(c.name)
         .setItems(options.toTypedArray()) { _, which ->
-            if (which == 2) {
-                openInCorner(activity, prefs, c)
+            if (which >= 2) {
+                openSecond(activity, prefs, c, split = which == 3)
                 return@setItems
             }
             val col = if (which == 0) Prefs.FAV else Prefs.LIST
@@ -125,34 +128,105 @@ fun setNewPin(activity: Activity, prefs: Prefs, onDone: () -> Unit) {
         .showWithKeyboard(input)
 }
 
-/** Seçilen kanalı köşeye koyar ve son izlenen kanalı tam ekranda açar */
-fun openInCorner(activity: Activity, prefs: Prefs, c: Channel) {
-    val main = Repo.liveList.getOrNull(Repo.liveIndex)
-    if (main == null || main.key == c.key) {
-        Repo.pipChannel = c
-        Toast.makeText(activity, "Şimdi tam ekranda izlemek istediğin kanalı aç; ${c.name} köşede oynayacak.", Toast.LENGTH_LONG).show()
-        return
-    }
-    fun go() {
-        Repo.pipChannel = c
-        Repo.playlist = Repo.liveList
-        activity.startActivity(
-            android.content.Intent(activity, PlayerActivity::class.java).putExtra("index", Repo.liveIndex)
-        )
-    }
-    val acc = prefs.account
+/** Aynı hesaptan iki yayın açılacaksa abonelik tek bağlantılıysa uyarır */
+fun checkConnections(activity: Activity, acc: Account?, go: () -> Unit) {
     if (acc == null || !acc.isXtream) return go()
-    (activity as? androidx.lifecycle.LifecycleOwner)?.lifecycleScope?.launch {
+    val owner = activity as? androidx.lifecycle.LifecycleOwner ?: return go()
+    owner.lifecycleScope.launch {
         val max = Repo.loadMaxConnections(acc)
         if (max != null && max < 2) {
             AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle("Aboneliğin tek bağlantılı")
-                .setMessage("Sağlayıcın aynı anda sadece $max yayına izin veriyor. İkinci kanal açılmayabilir ya da ana kanal donabilir.\n\nYine de denensin mi?")
+                .setTitle("Bu abonelik tek bağlantılı")
+                .setMessage("\"${acc.title}\" aynı anda sadece $max yayına izin veriyor. İkinci kanal açılmayabilir ya da ana kanal donabilir.\n\nİpucu: ikinci kanalı diğer aboneliğinden seçebilirsin (oynatıcıda ▶ → Başka hesaptan kanal seç).\n\nYine de denensin mi?")
                 .setPositiveButton("Dene") { _, _ -> go() }
                 .setNegativeButton("Vazgeç", null)
                 .show()
         } else {
             go()
         }
-    } ?: go()
+    }
+}
+
+/** Seçilen kanalı köşeye / yan yana koyar ve son izlenen kanalı tam ekranda açar */
+fun openSecond(activity: Activity, prefs: Prefs, c: Channel, split: Boolean) {
+    val main = Repo.liveList.getOrNull(Repo.liveIndex)
+    Repo.splitMode = split
+    if (main == null || main.key == c.key) {
+        Repo.pipChannel = c
+        Toast.makeText(activity, "Şimdi ana kanalı aç; ${c.name} ${if (split) "yanında" else "köşede"} oynayacak.", Toast.LENGTH_LONG).show()
+        return
+    }
+    checkConnections(activity, prefs.account) {
+        Repo.pipChannel = c
+        Repo.playlist = Repo.liveList
+        activity.startActivity(
+            android.content.Intent(activity, PlayerActivity::class.java).putExtra("index", Repo.liveIndex)
+        )
+    }
+}
+
+/**
+ * İkinci kanalı seçtirir: hesap (birden fazlaysa) → kategori → kanal.
+ * Farklı hesaptan seçilen kanal o hesabın bağlantısını kullanır.
+ */
+fun pickSecondChannel(activity: Activity, onPicked: (Channel, Account) -> Unit) {
+    val accounts = Accounts.all(activity)
+    if (accounts.size <= 1) {
+        accounts.firstOrNull()?.let { pickFromAccount(activity, it, onPicked) }
+        return
+    }
+    val activeId = Accounts.activeId(activity)
+    AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        .setTitle("Hangi hesaptan?")
+        .setItems(accounts.map { it.title + if (it.id == activeId) "  (şu an açık)" else "" }.toTypedArray()) { _, w ->
+            pickFromAccount(activity, accounts[w], onPicked)
+        }
+        .setNegativeButton("Vazgeç", null)
+        .show()
+}
+
+private fun pickFromAccount(activity: Activity, acc: Account, onPicked: (Channel, Account) -> Unit) {
+    val owner = activity as? androidx.lifecycle.LifecycleOwner ?: return
+    Toast.makeText(activity, "${acc.title}: kanallar yükleniyor…", Toast.LENGTH_SHORT).show()
+    owner.lifecycleScope.launch {
+        val data = try {
+            Repo.liveOf(acc)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Toast.makeText(activity, "Yüklenemedi: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            return@launch
+        }
+        val p = Prefs(activity, acc.id)
+        val hidden = p.hiddenCategories(Kind.LIVE)
+        val counts = data.items.groupingBy { it.categoryId }.eachCount()
+        val cats = p.sortCategories(Kind.LIVE, data.categories).filter { it.id !in hidden && counts.containsKey(it.id) }
+        val favs = p.items(Prefs.FAV).filter { it.kind == Kind.LIVE }
+        val names = ArrayList<String>()
+        val lists = ArrayList<List<Channel>>()
+        if (favs.isNotEmpty()) {
+            names.add("★ Favoriler (${favs.size})"); lists.add(favs)
+        }
+        for (c in cats) {
+            names.add("${c.name} (${counts[c.id]})")
+            lists.add(data.items.filter { it.categoryId == c.id })
+        }
+        if (names.isEmpty()) {
+            names.add("Tümü (${data.items.size})"); lists.add(data.items)
+        }
+        AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("${acc.title}: kategori seç")
+            .setItems(names.toTypedArray()) { _, w ->
+                val chans = lists[w]
+                AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle(names[w])
+                    .setItems(chans.mapIndexed { i, c -> "${i + 1}   ${c.name}" }.toTypedArray()) { _, ci ->
+                        onPicked(chans[ci], acc)
+                    }
+                    .setNegativeButton("Geri", null)
+                    .show()
+            }
+            .setNegativeButton("Vazgeç", null)
+            .show()
+    }
 }

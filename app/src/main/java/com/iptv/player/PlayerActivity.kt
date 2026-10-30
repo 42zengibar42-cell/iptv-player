@@ -332,6 +332,7 @@ class PlayerActivity : AppCompatActivity() {
         val c = Repo.pipChannel
         if (vod || c == null) {
             pipBox.visibility = View.GONE
+            applyLayout()
             return
         }
         val p = pip ?: PreviewPlayer(this, findViewById(R.id.pipView)).also { pip = it }
@@ -340,6 +341,61 @@ class PlayerActivity : AppCompatActivity() {
         p.play(c.url)
         tvPipName.text = (if (pipAudio) "🔊 " else "🔇 ") + c.name
         pipBox.visibility = View.VISIBLE
+        applyLayout()
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    /** Köşe: küçük pencere sağ altta. Yan yana: ekran ikiye bölünür. */
+    private fun applyLayout() {
+        val split = pipActive && Repo.splitMode
+        val half = resources.displayMetrics.widthPixels / 2
+        val main = playerView.layoutParams as android.widget.FrameLayout.LayoutParams
+        val box = pipBox.layoutParams as android.widget.FrameLayout.LayoutParams
+        if (split) {
+            main.width = half
+            main.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            main.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            box.width = half
+            box.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            box.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            box.setMargins(0, 0, 0, 0)
+            pipBox.setPadding(0, 0, 0, 0)
+            pipBox.setBackgroundColor(android.graphics.Color.BLACK)
+        } else {
+            main.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            main.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            main.gravity = android.view.Gravity.NO_GRAVITY
+            box.width = dp(384)
+            box.height = dp(216)
+            box.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+            box.setMargins(dp(32), dp(32), dp(32), dp(32))
+            pipBox.setPadding(dp(3), dp(3), dp(3), dp(3))
+            pipBox.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.accent))
+        }
+        playerView.layoutParams = main
+        pipBox.layoutParams = box
+    }
+
+    private fun toggleSplit() {
+        Repo.splitMode = !Repo.splitMode
+        applyLayout()
+        Toast.makeText(this, if (Repo.splitMode) "Yan yana" else "Köşede", Toast.LENGTH_SHORT).show()
+    }
+
+    /** İkinci kanalı herhangi bir hesaptan seç (iki abonelik varsa her biri kendi bağlantısını kullanır) */
+    private fun pickSecond(split: Boolean) {
+        pickSecondChannel(this) { c, acc ->
+            fun go() {
+                Repo.splitMode = split
+                Repo.pipChannel = c
+                pip?.release()
+                pip = null
+                startPip()
+            }
+            // Aynı hesaptansa bağlantı sınırını kontrol et
+            if (acc.id == Accounts.activeId(this)) checkConnections(this, acc) { go() } else go()
+        }
     }
 
     private fun closePip() {
@@ -349,7 +405,8 @@ class PlayerActivity : AppCompatActivity() {
         pipAudio = false
         player?.volume = 1f
         pipBox.visibility = View.GONE
-        Toast.makeText(this, "Köşedeki kanal kapatıldı", Toast.LENGTH_SHORT).show()
+        applyLayout()
+        Toast.makeText(this, "İkinci kanal kapatıldı", Toast.LENGTH_SHORT).show()
     }
 
     private fun toggleAudio() {
@@ -374,23 +431,24 @@ class PlayerActivity : AppCompatActivity() {
         startPip()
     }
 
+    /** ▶ tuşu menüsü */
     private fun showPipMenu() {
-        val items = arrayOf(
-            "⇄  Yer değiştir",
-            if (pipAudio) "🔊  Sesi ana kanala ver" else "🔊  Sesi köşedeki kanala ver",
-            "✕  Köşedeki kanalı kapat",
-            "💬  Ses ve altyazı",
-        )
+        val items = ArrayList<String>()
+        val actions = ArrayList<() -> Unit>()
+        if (pipActive) {
+            items.add("⇄  Yer değiştir"); actions.add { swapPip() }
+            items.add(if (pipAudio) "🔊  Sesi ana kanala ver" else "🔊  Sesi ikinci kanala ver"); actions.add { toggleAudio() }
+            items.add(if (Repo.splitMode) "▣  Köşeye küçült" else "▥  Yan yana göster"); actions.add { toggleSplit() }
+            items.add("📺  İkinci kanalı değiştir"); actions.add { pickSecond(Repo.splitMode) }
+            items.add("✕  İkinci kanalı kapat"); actions.add { closePip() }
+        } else {
+            items.add("📺  İkinci kanal aç (köşede)"); actions.add { pickSecond(false) }
+            items.add("▥  İkinci kanal aç (yan yana)"); actions.add { pickSecond(true) }
+        }
+        items.add("💬  Ses ve altyazı"); actions.add { showTrackDialog() }
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Köşede: ${Repo.pipChannel?.name ?: ""}")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> swapPip()
-                    1 -> toggleAudio()
-                    2 -> closePip()
-                    else -> showTrackDialog()
-                }
-            }
+            .setTitle(if (pipActive) "İkinci kanal: ${Repo.pipChannel?.name ?: ""}" else "Seçenekler")
+            .setItems(items.toTypedArray()) { _, which -> actions[which]() }
             .setNegativeButton("Kapat", null)
             .show()
     }
@@ -562,7 +620,7 @@ class PlayerActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (pipActive) showPipMenu() else showTrackDialog()
+                showPipMenu()
                 return true
             }
             KeyEvent.KEYCODE_INFO -> {

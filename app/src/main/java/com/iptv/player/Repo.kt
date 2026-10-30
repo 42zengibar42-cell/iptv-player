@@ -52,8 +52,25 @@ object Repo {
     var liveList: List<Channel> = emptyList()
     var liveIndex: Int = -1
 
-    /** Aboneliğin aynı anda izin verdiği bağlantı sayısı (bilinmiyorsa null) */
-    var maxConnections: Int? = null
+    /** Köşe / yan yana: true = ekranın yarısı yarısı */
+    var splitMode = false
+
+    /** Hesap kimliği → aynı anda izin verilen bağlantı sayısı */
+    private val maxConn = HashMap<String, Int>()
+
+    /** Diğer hesapların canlı kanal listeleri (ikinci kanal seçerken) */
+    private val otherLive = HashMap<String, SectionData>()
+
+    /** Herhangi bir hesabın canlı kanallarını yükler; açık hesabın önbelleğini bozmaz */
+    suspend fun liveOf(a: Account): SectionData {
+        if (a.id == account?.id) return loadSection(a, Kind.LIVE)
+        otherLive[a.id]?.let { return it }
+        val data = withContext(Dispatchers.Default) {
+            if (a.isXtream) loadXtreamLive(a) else parseM3u(a).getValue(Kind.LIVE)
+        }
+        otherLive[a.id] = data
+        return data
+    }
 
     /** "ornek.com:8080/" gibi girişleri "http://ornek.com:8080" yapar */
     fun normalizeServer(input: String): String {
@@ -89,11 +106,11 @@ object Repo {
     }
 
     suspend fun loadMaxConnections(a: Account): Int? {
-        maxConnections?.let { return it }
+        maxConn[a.id]?.let { return it }
         if (!a.isXtream) return null
         return try {
             JSONObject(Net.get(api(a, null))).optJSONObject("user_info")
-                ?.optString("max_connections")?.toIntOrNull()?.also { maxConnections = it }
+                ?.optString("max_connections")?.toIntOrNull()?.also { maxConn[a.id] = it }
         } catch (e: Exception) {
             null
         }
@@ -324,6 +341,10 @@ object Repo {
 
     /** M3U listesini okur; linke göre canlı / film / dizi olarak ayırır */
     private suspend fun loadM3u(a: Account) {
+        sections.putAll(parseM3u(a))
+    }
+
+    private suspend fun parseM3u(a: Account): Map<String, SectionData> {
         val text = Net.get(a.m3uUrl)
         val catMaps = mapOf(
             Kind.LIVE to LinkedHashMap<String, Category>(),
@@ -380,8 +401,8 @@ object Repo {
             }
         }
         if (n == 0) throw IOException("Listede kanal bulunamadı.")
-        for (k in listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES)) {
-            sections[k] = SectionData(catMaps.getValue(k).values.toList(), lists.getValue(k))
+        return listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES).associateWith { k ->
+            SectionData(catMaps.getValue(k).values.toList(), lists.getValue(k))
         }
     }
 

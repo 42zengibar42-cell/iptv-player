@@ -16,6 +16,8 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private var mode = Account.TYPE_XTREAM
+    private var isNew = false
+    private var editId: String? = null
 
     private lateinit var btnXtream: Button
     private lateinit var btnM3u: Button
@@ -48,7 +50,11 @@ class LoginActivity : AppCompatActivity() {
         progress = findViewById(R.id.progress)
         tvStatus = findViewById(R.id.tvStatus)
 
-        prefs.account?.let {
+        // "new": yeni hesap ekle; "accountId": o hesabı düzenle; ikisi de yoksa açık hesap
+        isNew = intent.getBooleanExtra("new", false) || Accounts.all(this).isEmpty()
+        editId = if (isNew) null else (intent.getStringExtra("accountId") ?: Accounts.activeId(this))
+        findViewById<TextView>(R.id.tvTitle).text = if (isNew && Accounts.all(this).isNotEmpty()) "Yeni hesap ekle" else "KcKTV"
+        (if (isNew) null else Accounts.get(this, editId))?.let {
             mode = it.type
             etName.setText(it.name)
             etServer.setText(it.server)
@@ -108,7 +114,9 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
+        val id = editId ?: Accounts.newId(this)
         val account = Account(
+            id = id,
             type = mode,
             name = etName.text.toString().trim(),
             server = if (x) Repo.normalizeServer(server) else "",
@@ -124,9 +132,11 @@ class LoginActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 if (x) Repo.checkXtream(account) else Repo.checkM3u(account)
-                prefs.account = account
+                Accounts.save(this@LoginActivity, account)
+                Accounts.setActive(this@LoginActivity, id)
                 Repo.account = null
                 Repo.sections.clear()
+                Repo.pipChannel = null
                 startActivity(
                     Intent(this@LoginActivity, ChannelsActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
