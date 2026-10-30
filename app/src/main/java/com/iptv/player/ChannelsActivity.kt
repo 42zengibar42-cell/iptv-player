@@ -80,6 +80,7 @@ class ChannelsActivity : AppCompatActivity() {
         rvCategories = findViewById(R.id.rvCategories)
         rvChannels = findViewById(R.id.rvChannels)
         etSearch = findViewById(R.id.etSearch)
+        etSearch.acceptNumpad()
         loading = findViewById(R.id.loading)
         tvLoading = findViewById(R.id.tvLoading)
         tvEmpty = findViewById(R.id.tvEmpty)

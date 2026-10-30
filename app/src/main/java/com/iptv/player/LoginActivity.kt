@@ -45,6 +45,7 @@ class LoginActivity : AppCompatActivity() {
         etUser = findViewById(R.id.etUser)
         etPass = findViewById(R.id.etPass)
         etM3u = findViewById(R.id.etM3u)
+        listOf(etName, etServer, etUser, etPass, etM3u).forEach { it.acceptNumpad() }
         groupXtream = findViewById(R.id.groupXtream)
         groupM3u = findViewById(R.id.groupM3u)
         progress = findViewById(R.id.progress)

@@ -49,6 +49,7 @@ private fun pinInput(activity: Activity): EditText = EditText(activity).apply {
     hint = "••••"
     textSize = 24f
     gravity = android.view.Gravity.CENTER
+    acceptNumpad()
 }
 
 private fun AlertDialog.showWithKeyboard(input: EditText) {
@@ -88,6 +89,7 @@ private fun forgotPin(activity: Activity, prefs: Prefs) {
     val input = EditText(activity).apply {
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         hint = "IPTV hesabının şifresi"
+        acceptNumpad()
     }
     AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         .setTitle("Şifreyi sıfırla")
