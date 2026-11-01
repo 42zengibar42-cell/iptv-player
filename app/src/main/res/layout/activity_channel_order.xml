@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical"
+    android:paddingLeft="48dp"
+    android:paddingTop="20dp"
+    android:paddingRight="48dp"
+    android:paddingBottom="12dp">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="@color/text"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="OK: kanalı seç, sonra ▲ ▼ ile taşı, tekrar OK ile bırak   •   ▶ ile ⤒ ▲ ▼ düğmelerine geç   •   Geri: kaydet ve çık"
+        android:textColor="@color/text_dim"
+        android:textSize="14sp" />
+
+    <Button
+        android:id="@+id/btnReset"
+        style="@style/Btn"
+        android:layout_marginTop="12dp"
+        android:text="↺ Sağlayıcı sırasına dön" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvOrder"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:background="@color/panel"
+        android:clipToPadding="false"
+        android:padding="8dp" />
+</LinearLayout>

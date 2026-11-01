@@ -51,6 +51,11 @@
         </provider>
 
         <activity
+            android:name=".ChannelOrderActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".AccountsActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />

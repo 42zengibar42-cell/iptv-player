@@ -301,6 +301,32 @@ class Prefs(context: Context, accountId: String? = null) {
         sp.edit().putInt("sort_$section", mode).apply()
     }
 
+    /** Bir kategorideki kanalların kullanıcı sırası (kanal anahtarları) */
+    fun channelOrder(section: String, catId: String): List<String> = try {
+        val arr = JSONArray(sp.getString("chorder_${section}_$catId", "[]"))
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun setChannelOrder(section: String, catId: String, keys: List<String>) {
+        val e = sp.edit()
+        if (keys.isEmpty()) e.remove("chorder_${section}_$catId")
+        else e.putString("chorder_${section}_$catId", JSONArray(keys).toString())
+        e.apply()
+    }
+
+    /** Kayıtlı sıraya göre dizer; sağlayıcının yeni eklediği kanallar sona gelir */
+    fun sortChannels(section: String, catId: String, list: List<Channel>): List<Channel> {
+        val order = channelOrder(section, catId)
+        if (order.isEmpty()) return list
+        val rank = HashMap<String, Int>()
+        order.forEachIndexed { i, k -> rank[k] = i }
+        return list.withIndex()
+            .sortedBy { rank[it.value.key] ?: (order.size + it.index) }
+            .map { it.value }
+    }
+
     fun lastCategory(section: String): String? = sp.getString("lastcat_$section", null)
 
     fun setLastCategory(section: String, id: String) {

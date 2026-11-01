@@ -10,7 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 /** OK'a basılı tutunca açılan menü: Favorilere / Listeme ekle-çıkar */
-fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onChanged: () -> Unit) {
+fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onOrder: (() -> Unit)? = null, onChanged: () -> Unit) {
     val fav = prefs.contains(Prefs.FAV, c.key)
     val inList = prefs.contains(Prefs.LIST, c.key)
     val options = arrayListOf(
@@ -22,9 +22,14 @@ fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onChanged: () -> 
         options.add("📺  Köşede aç (ikinci kanal)")
         options.add("▥  Yan yana aç (ikinci kanal)")
     }
+    val orderIndex = if (onOrder != null) options.size.also { options.add("↕  Bu kategorideki kanalları sırala") } else -1
     AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         .setTitle(c.name)
         .setItems(options.toTypedArray()) { _, which ->
+            if (which == orderIndex) {
+                onOrder?.invoke()
+                return@setItems
+            }
             if (which >= 2) {
                 openSecond(activity, prefs, c, split = which == 3)
                 return@setItems

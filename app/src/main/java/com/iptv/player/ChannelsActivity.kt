@@ -374,7 +374,7 @@ class ChannelsActivity : AppCompatActivity() {
             else -> sectionItems.filter { it.categoryId == id }
         }
         if (q.isNotEmpty()) list = (if (id == ALL) sectionItems else list).filter { it.name.contains(q, ignoreCase = true) }
-        chAdapter.items = sorted(list)
+        chAdapter.items = sorted(list, if (isCollection || q.isNotEmpty()) null else id)
         rvChannels.scrollToPosition(0)
         showEmptyIfNeeded()
     }
@@ -522,20 +522,42 @@ class ChannelsActivity : AppCompatActivity() {
     private fun categoryMenu(pos: Int) {
         if (isCollection) return
         val id = catIds.getOrNull(pos) ?: return
-        if (id == ALL || id == EDIT) return
-        val name = sectionCategories.firstOrNull { it.id == id }?.name ?: return
+        if (id == EDIT || id == GUIDE || id == CONT) return
+        val name = if (id == ALL) "Tümü" else sectionCategories.firstOrNull { it.id == id }?.name ?: return
+        val items = arrayListOf("↕  Kanalları sırala")
+        if (id != ALL) items.add("🚫  Bu kategoriyi gizle")
         android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle(name)
-            .setItems(arrayOf("🚫  Bu kategoriyi gizle")) { _, _ ->
-                prefs.setCategoryHidden(tab, id, true)
-                Toast.makeText(this, "Gizlendi: $name", Toast.LENGTH_SHORT).show()
-                rebuildSection()
+            .setItems(items.toTypedArray()) { _, w ->
+                if (w == 0) {
+                    openChannelOrder(id, name)
+                } else {
+                    prefs.setCategoryHidden(tab, id, true)
+                    Toast.makeText(this, "Gizlendi: $name", Toast.LENGTH_SHORT).show()
+                    rebuildSection()
+                }
             }
             .setNegativeButton("Kapat", null)
             .show()
     }
 
     private var editorOpened = false
+
+    private fun openChannelOrder(catId: String, name: String) {
+        val list = if (catId == ALL) sectionItems else sectionItems.filter { it.categoryId == catId }
+        if (list.isEmpty()) return
+        if (prefs.sortMode(tab) != 0) {
+            // Kendi sıran sadece "⇅ Sıra" modunda görünür
+            prefs.setSortMode(tab, 0)
+            btnSort.text = sortLabel()
+        }
+        ChannelOrderActivity.channels = prefs.sortChannels(tab, catId, list)
+        editorOpened = true
+        startActivity(
+            Intent(this, ChannelOrderActivity::class.java)
+                .putExtra("section", tab).putExtra("catId", catId).putExtra("name", name)
+        )
+    }
 
     private fun categoryClick(pos: Int) {
         if (catIds.getOrNull(pos) == GUIDE) {
@@ -559,10 +581,11 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun sortKey(name: String) = name.replaceFirst(prefix, "").trim()
 
-    private fun sorted(list: List<Channel>): List<Channel> = when (prefs.sortMode(tab)) {
+    /** catId verilirse ve "Sıra" seçiliyse kullanıcının kanal sırası uygulanır */
+    private fun sorted(list: List<Channel>, catId: String? = null): List<Channel> = when (prefs.sortMode(tab)) {
         1 -> list.sortedWith { a, b -> collator.compare(sortKey(a.name), sortKey(b.name)) }
         2 -> list.sortedByDescending { it.added }
-        else -> list
+        else -> if (catId != null && catId != CONT) prefs.sortChannels(tab, catId, list) else list
     }
 
     private fun sortLabel() = when (prefs.sortMode(tab)) {
@@ -604,7 +627,11 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun toggleFavorite(pos: Int) {
         val c = chAdapter.items.getOrNull(pos) ?: return
-        showItemMenu(this, prefs, c) {
+        val catId = catIds.getOrNull(catAdapter.selected)
+        val canOrder = !isCollection && etSearch.text.isBlank() && catId != null &&
+            catId != CONT && catId != EDIT && catId != GUIDE
+        val catName = if (catId == ALL) "Tümü" else sectionCategories.firstOrNull { it.id == catId }?.name ?: ""
+        showItemMenu(this, prefs, c, onOrder = if (canOrder) ({ openChannelOrder(catId!!, catName) }) else null) {
             if (isCollection) {
                 refreshCollection()
                 rvChannels.post {
