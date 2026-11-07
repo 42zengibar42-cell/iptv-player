@@ -453,7 +453,9 @@ class ChannelsActivity : AppCompatActivity() {
         val hidden = prefs.hiddenCategories(tab)
         val present = data.items.mapTo(HashSet()) { it.categoryId }
         hiddenCount = hidden.count { it in present }
-        val visible = if (hidden.isEmpty()) data.items else data.items.filter { it.categoryId !in hidden }
+        val hiddenCh = prefs.hiddenChannels(tab)
+        val visible = if (hidden.isEmpty() && hiddenCh.isEmpty()) data.items
+        else data.items.filter { it.categoryId !in hidden && it.key !in hiddenCh }
         // "Tümü" listesi de kategori sırasına göre dizilsin
         val rank = HashMap<String, Int>()
         prefs.sortCategories(tab, data.categories).forEachIndexed { i, c -> rank[c.id] = i }
@@ -486,7 +488,8 @@ class ChannelsActivity : AppCompatActivity() {
         listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES).flatMap { k ->
             val d = Repo.sections[k] ?: return@flatMap emptyList<Channel>()
             val hidden = prefs.hiddenCategories(k)
-            d.items.filter { it.categoryId !in hidden && it.name.contains(q, ignoreCase = true) }
+            val hiddenCh = prefs.hiddenChannels(k)
+            d.items.filter { it.categoryId !in hidden && it.key !in hiddenCh && it.name.contains(q, ignoreCase = true) }
         }
 
     /** Aramada film / dizi listeleri henüz yüklenmediyse arka planda yükle */
@@ -525,19 +528,24 @@ class ChannelsActivity : AppCompatActivity() {
         val id = catIds.getOrNull(pos) ?: return
         if (id == EDIT || id == GUIDE || id == CONT) return
         val name = if (id == ALL) "Tümü" else sectionCategories.firstOrNull { it.id == id }?.name ?: return
-        val items = arrayListOf("↕  Kanalları sırala")
-        if (id != ALL) items.add("🚫  Bu kategoriyi gizle")
+        val names = arrayListOf("↕  Kanalları sırala")
+        val actions = arrayListOf<() -> Unit>({ openChannelOrder(id, name) })
+        val hiddenHere = hiddenChannelsIn(id)
+        if (hiddenHere.isNotEmpty()) {
+            names.add("👁  Gizli kanallar (${hiddenHere.size})")
+            actions.add { showHiddenChannels(name, hiddenHere) }
+        }
+        if (id != ALL) {
+            names.add("🚫  Bu kategoriyi gizle")
+            actions.add {
+                prefs.setCategoryHidden(tab, id, true)
+                Toast.makeText(this, "Gizlendi: $name", Toast.LENGTH_SHORT).show()
+                rebuildSection()
+            }
+        }
         android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle(name)
-            .setItems(items.toTypedArray()) { _, w ->
-                if (w == 0) {
-                    openChannelOrder(id, name)
-                } else {
-                    prefs.setCategoryHidden(tab, id, true)
-                    Toast.makeText(this, "Gizlendi: $name", Toast.LENGTH_SHORT).show()
-                    rebuildSection()
-                }
-            }
+            .setItems(names.toTypedArray()) { _, w -> actions[w]() }
             .setNegativeButton("Kapat", null)
             .show()
     }
@@ -556,6 +564,55 @@ class ChannelsActivity : AppCompatActivity() {
         } else {
             Repo.playlist = listOf(last)
             startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", 0))
+        }
+    }
+
+    /** Bu kategorideki gizli kanallar (ALL: bölümdeki tüm gizli kanallar) */
+    private fun hiddenChannelsIn(catId: String): List<Channel> {
+        val keys = prefs.hiddenChannels(tab)
+        if (keys.isEmpty()) return emptyList()
+        val all = Repo.sections[tab]?.items ?: return emptyList()
+        return all.filter { it.key in keys && (catId == ALL || it.categoryId == catId) }
+    }
+
+    /** Gizli kanalları işaretleyerek geri getir */
+    private fun showHiddenChannels(catName: String, list: List<Channel>) {
+        val checked = BooleanArray(list.size) { true }
+        android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Gizli kanallar – $catName  (☑ gizli kalsın)")
+            .setMultiChoiceItems(list.map { it.name }.toTypedArray(), checked) { _, w, on -> checked[w] = on }
+            .setPositiveButton("Kaydet") { _, _ ->
+                var shown = 0
+                list.forEachIndexed { i, ch ->
+                    if (!checked[i]) {
+                        prefs.setChannelHidden(tab, ch.key, false); shown++
+                    }
+                }
+                if (shown > 0) Toast.makeText(this, "$shown kanal geri getirildi", Toast.LENGTH_SHORT).show()
+                rebuildSection()
+            }
+            .setNeutralButton("Hepsini göster") { _, _ ->
+                list.forEach { prefs.setChannelHidden(tab, it.key, false) }
+                Toast.makeText(this, "${list.size} kanal geri getirildi", Toast.LENGTH_SHORT).show()
+                rebuildSection()
+            }
+            .setNegativeButton("Vazgeç", null)
+            .show()
+    }
+
+    private fun hideChannel(c: Channel, pos: Int) {
+        prefs.setChannelHidden(tab, c.key, true)
+        Toast.makeText(this, "Gizlendi: ${c.name}  (geri getirmek için kategoriye basılı tut → 👁 Gizli kanallar)", Toast.LENGTH_LONG).show()
+        val sel = catIds.getOrNull(catAdapter.selected)
+        rebuildSection(focus = false)
+        val ci = catIds.indexOf(sel)
+        if (ci >= 0 && ci != catAdapter.selected) catAdapter.select(ci)
+        rvChannels.post {
+            val p = pos.coerceAtMost(chAdapter.itemCount - 1)
+            if (p >= 0) {
+                rvChannels.scrollToPosition(p)
+                rvChannels.post { rvChannels.findViewHolderForAdapterPosition(p)?.itemView?.requestFocus() }
+            }
         }
     }
 
@@ -649,7 +706,13 @@ class ChannelsActivity : AppCompatActivity() {
         val canOrder = !isCollection && etSearch.text.isBlank() && catId != null &&
             catId != CONT && catId != EDIT && catId != GUIDE
         val catName = if (catId == ALL) "Tümü" else sectionCategories.firstOrNull { it.id == catId }?.name ?: ""
-        showItemMenu(this, prefs, c, onOrder = if (canOrder) ({ openChannelOrder(catId!!, catName) }) else null) {
+        val canHide = !isCollection && (c.kind == Kind.LIVE || c.kind == Kind.MOVIE || c.kind == Kind.SERIES) &&
+            Repo.sections[tab]?.items?.any { it.key == c.key } == true
+        showItemMenu(
+            this, prefs, c,
+            onOrder = if (canOrder) ({ openChannelOrder(catId!!, catName) }) else null,
+            onHide = if (canHide) ({ hideChannel(c, pos) }) else null,
+        ) {
             if (isCollection) {
                 refreshCollection()
                 rvChannels.post {

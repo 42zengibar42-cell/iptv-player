@@ -10,40 +10,39 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 /** OK'a basılı tutunca açılan menü: Favorilere / Listeme ekle-çıkar */
-fun showItemMenu(activity: Activity, prefs: Prefs, c: Channel, onOrder: (() -> Unit)? = null, onChanged: () -> Unit) {
-    val fav = prefs.contains(Prefs.FAV, c.key)
-    val inList = prefs.contains(Prefs.LIST, c.key)
-    val options = arrayListOf(
-        if (fav) "★  Favorilerden çıkar" else "★  Favorilere ekle",
-        if (inList) "☰  Listemden çıkar" else "☰  Listeme ekle",
-    )
-    val live = c.kind == Kind.LIVE
-    if (live) {
-        options.add("📺  Köşede aç (ikinci kanal)")
-        options.add("▥  Yan yana aç (ikinci kanal)")
+fun showItemMenu(
+    activity: Activity,
+    prefs: Prefs,
+    c: Channel,
+    onOrder: (() -> Unit)? = null,
+    onHide: (() -> Unit)? = null,
+    onChanged: () -> Unit,
+) {
+    val names = ArrayList<String>()
+    val actions = ArrayList<() -> Unit>()
+    fun toggle(col: String) {
+        val added = prefs.toggle(col, c)
+        val where = if (col == Prefs.FAV) "Favoriler" else "Listem"
+        Toast.makeText(activity, if (added) "$where'e eklendi" else "$where'den çıkarıldı", Toast.LENGTH_SHORT).show()
+        onChanged()
     }
-    val orderIndex = if (onOrder != null) options.size.also { options.add("↕  Bu kategorideki kanalları sırala") } else -1
+    names.add(if (prefs.contains(Prefs.FAV, c.key)) "★  Favorilerden çıkar" else "★  Favorilere ekle")
+    actions.add { toggle(Prefs.FAV) }
+    names.add(if (prefs.contains(Prefs.LIST, c.key)) "☰  Listemden çıkar" else "☰  Listeme ekle")
+    actions.add { toggle(Prefs.LIST) }
+    if (c.kind == Kind.LIVE) {
+        names.add("📺  Köşede aç (ikinci kanal)"); actions.add { openSecond(activity, prefs, c, split = false) }
+        names.add("▥  Yan yana aç (ikinci kanal)"); actions.add { openSecond(activity, prefs, c, split = true) }
+    }
+    if (onOrder != null) {
+        names.add("↕  Bu kategorideki kanalları sırala"); actions.add(onOrder)
+    }
+    if (onHide != null) {
+        names.add("🚫  Bu kanalı gizle"); actions.add(onHide)
+    }
     AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         .setTitle(c.name)
-        .setItems(options.toTypedArray()) { _, which ->
-            if (which == orderIndex) {
-                onOrder?.invoke()
-                return@setItems
-            }
-            if (which >= 2) {
-                openSecond(activity, prefs, c, split = which == 3)
-                return@setItems
-            }
-            val col = if (which == 0) Prefs.FAV else Prefs.LIST
-            val added = prefs.toggle(col, c)
-            val where = if (col == Prefs.FAV) "Favoriler" else "Listem"
-            Toast.makeText(
-                activity,
-                if (added) "$where'e eklendi" else "$where'den çıkarıldı",
-                Toast.LENGTH_SHORT,
-            ).show()
-            onChanged()
-        }
+        .setItems(names.toTypedArray()) { _, which -> actions[which]() }
         .setNegativeButton("Kapat", null)
         .show()
 }

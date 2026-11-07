@@ -251,6 +251,16 @@ class Prefs(context: Context, accountId: String? = null) {
 
     // ---------- Gizli kategoriler ve son seçilen kategori ----------
 
+    /** Gizlenen kanallar (kanal anahtarları), bölüm başına */
+    fun hiddenChannels(section: String): Set<String> =
+        sp.getStringSet("hiddench_$section", emptySet())?.toSet() ?: emptySet()
+
+    fun setChannelHidden(section: String, key: String, hidden: Boolean) {
+        val set = hiddenChannels(section).toMutableSet()
+        if (hidden) set.add(key) else set.remove(key)
+        sp.edit().putStringSet("hiddench_$section", set).apply()
+    }
+
     fun hiddenCategories(section: String): Set<String> =
         sp.getStringSet("hidden_$section", emptySet())?.toSet() ?: emptySet()
 
