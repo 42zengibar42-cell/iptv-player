@@ -138,16 +138,13 @@ class LoginActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 if (x) Repo.checkXtream(account) else Repo.checkM3u(account)
+                val old = editId?.let { Accounts.get(this@LoginActivity, it) }
+                val others = Accounts.all(this@LoginActivity).filter { it.id != id }
                 Accounts.save(this@LoginActivity, account)
                 Accounts.setActive(this@LoginActivity, id)
-                Repo.account = null
-                Repo.sections.clear()
-                Repo.pipChannel = null
-                startActivity(
-                    Intent(this@LoginActivity, ChannelsActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                )
-                finish()
+                // Aynı hesap düzenlendi (ör. yenilenen abonelik): ayarlar kalır, kayıtlı adresler güncellenir
+                if (old != null) Transfer.accountChanged(this@LoginActivity, id, old, account)
+                if (old == null && others.isNotEmpty()) askCopy(account, others) else goChannels()
             } catch (e: Exception) {
                 tvStatus.text = "Bağlanılamadı: ${e.message ?: e.javaClass.simpleName}"
             } finally {
@@ -155,5 +152,52 @@ class LoginActivity : AppCompatActivity() {
                 progress.visibility = View.GONE
             }
         }
+    }
+
+    private fun goChannels() {
+        Repo.account = null
+        Repo.sections.clear()
+        Repo.pipChannel = null
+        Repo.liveList = emptyList()
+        Repo.liveIndex = -1
+        startActivity(
+            Intent(this, ChannelsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        )
+        finish()
+    }
+
+    /** Yeni hesap: önceki bir hesabın ayarları aktarılsın mı? */
+    private fun askCopy(account: Account, others: List<Account>) {
+        val sorted = others.sortedByDescending { Transfer.sameServer(it, account) }
+        val names = sorted.map { o ->
+            "↪  ${o.title}" + if (Transfer.sameServer(o, account)) "   (aynı sağlayıcı ✓)" else "   (farklı sağlayıcı)"
+        } + "✕  Hayır, boş başla"
+        android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Önceki ayarlar aktarılsın mı?")
+            .setItems(names.toTypedArray()) { _, w ->
+                val src = sorted.getOrNull(w)
+                if (src == null) {
+                    goChannels()
+                    return@setItems
+                }
+                val go = {
+                    Transfer.copy(this, src, account)
+                    android.widget.Toast.makeText(this, "Ayarlar aktarıldı: ${src.title} → ${account.title}", android.widget.Toast.LENGTH_LONG).show()
+                    goChannels()
+                }
+                if (Transfer.sameServer(src, account)) {
+                    go()
+                } else {
+                    android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                        .setTitle("Farklı sağlayıcı")
+                        .setMessage("Bu iki hesap farklı sağlayıcılardan. Kategori ve kanal numaraları farklı olduğu için favoriler, sıralamalar ve gizlemeler büyük ihtimalle tutmaz.\n\nYine de aktarılsın mı?")
+                        .setPositiveButton("Aktar") { _, _ -> go() }
+                        .setNegativeButton("Boş başla") { _, _ -> goChannels() }
+                        .show()
+                }
+            }
+            .setCancelable(false)
+            .show()
     }
 }
