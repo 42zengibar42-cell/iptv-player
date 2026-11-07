@@ -69,6 +69,11 @@ class LoginActivity : AppCompatActivity() {
         btnM3u.setOnClickListener { setMode(Account.TYPE_M3U) }
         btnSave.setOnClickListener { save() }
 
+        val backupUi = BackupUi(this)
+        findViewById<Button>(R.id.btnRestoreBackup).apply {
+            visibility = if (Accounts.all(this@LoginActivity).isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+            setOnClickListener { backupUi.restore() }
+        }
         findViewById<TextView>(R.id.tvVersion).text = "KcKTV sürüm ${Updater.currentVersion(this)}"
         findViewById<Button>(R.id.btnUpdate).setOnClickListener { Updater.check(this, manual = true) }
 

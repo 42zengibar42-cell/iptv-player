@@ -177,6 +177,7 @@ class PlayerActivity : AppCompatActivity() {
         if (!vod) {
             Repo.liveList = Repo.playlist
             Repo.liveIndex = index
+            prefs.lastLive = Repo.playlist[index]
         }
         triedAlternative = false
         val c = Repo.playlist[index]
@@ -446,9 +447,33 @@ class PlayerActivity : AppCompatActivity() {
             items.add("▥  İkinci kanal aç (yan yana)"); actions.add { pickSecond(true) }
         }
         items.add("💬  Ses ve altyazı"); actions.add { showTrackDialog() }
+        items.add(if (SleepTimer.active) "⏾  Uyku zamanlayıcısı (${SleepTimer.minutesLeft} dk kaldı)" else "⏾  Uyku zamanlayıcısı")
+        actions.add { showSleepMenu() }
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle(if (pipActive) "İkinci kanal: ${Repo.pipChannel?.name ?: ""}" else "Seçenekler")
             .setItems(items.toTypedArray()) { _, which -> actions[which]() }
+            .setNegativeButton("Kapat", null)
+            .show()
+    }
+
+    // ---------- Uyku zamanlayıcısı ----------
+
+    private fun showSleepMenu() {
+        val mins = intArrayOf(15, 30, 45, 60, 90, 120)
+        val items = mins.map { "$it dakika sonra kapat" }.toMutableList()
+        if (SleepTimer.active) items.add(0, "✕  Zamanlayıcıyı iptal et (${SleepTimer.minutesLeft} dk kalmıştı)")
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("⏾ Uyku zamanlayıcısı")
+            .setItems(items.toTypedArray()) { _, w ->
+                val i = if (SleepTimer.active) w - 1 else w
+                if (i < 0) {
+                    SleepTimer.cancel()
+                    Toast.makeText(this, "Uyku zamanlayıcısı iptal edildi", Toast.LENGTH_SHORT).show()
+                } else {
+                    SleepTimer.start(mins[i])
+                    Toast.makeText(this, "⏾ ${mins[i]} dakika sonra KcKTV kapanacak", Toast.LENGTH_LONG).show()
+                }
+            }
             .setNegativeButton("Kapat", null)
             .show()
     }
@@ -585,6 +610,10 @@ class PlayerActivity : AppCompatActivity() {
         }
         if (code == KeyEvent.KEYCODE_BACK && !vod && pipActive && !nextActive) {
             if (event.action == KeyEvent.ACTION_UP) closePip()
+            return true
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_MENU) {
+            if (vod) showSleepMenu() else showPipMenu()
             return true
         }
         if (event.action == KeyEvent.ACTION_DOWN &&

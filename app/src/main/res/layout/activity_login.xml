@@ -124,6 +124,14 @@
             android:layout_marginTop="24dp"
             android:text="Kaydet ve bağlan" />
 
+        <Button
+            android:id="@+id/btnRestoreBackup"
+            style="@style/Btn"
+            android:layout_width="match_parent"
+            android:layout_marginTop="12dp"
+            android:text="📂 Yedekten geri yükle (yeni kutu / yeniden kurulum)"
+            android:visibility="gone" />
+
         <ProgressBar
             android:id="@+id/progress"
             android:layout_width="40dp"

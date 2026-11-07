@@ -132,6 +132,13 @@ object Accounts {
 
     fun active(ctx: Context): Account? = get(ctx, activeId(ctx))
 
+    /** Açılışta son kanalı otomatik başlat (varsayılan: açık) */
+    fun autoPlay(ctx: Context) = store(ctx).getBoolean("autoplay", true)
+
+    fun setAutoPlay(ctx: Context, on: Boolean) {
+        store(ctx).edit().putBoolean("autoplay", on).apply()
+    }
+
     fun setActive(ctx: Context, id: String) {
         store(ctx).edit().putString("active", id).apply()
     }
@@ -326,6 +333,17 @@ class Prefs(context: Context, accountId: String? = null) {
             .sortedBy { rank[it.value.key] ?: (order.size + it.index) }
             .map { it.value }
     }
+
+    /** En son tam ekran izlenen canlı kanal (açılışta otomatik başlatmak için) */
+    var lastLive: Channel?
+        get() = try {
+            sp.getString("last_live", null)?.let { Channel.fromJson(JSONObject(it)) }
+        } catch (e: Exception) {
+            null
+        }
+        set(v) {
+            sp.edit().apply { if (v == null) remove("last_live") else putString("last_live", v.toJson().toString()) }.apply()
+        }
 
     fun lastCategory(section: String): String? = sp.getString("lastcat_$section", null)
 

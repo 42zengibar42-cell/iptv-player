@@ -43,6 +43,29 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnBackup"
+                style="@style/Btn"
+                android:text="💾 Yedekle" />
+
+            <Button
+                android:id="@+id/btnRestore"
+                style="@style/Btn"
+                android:layout_marginLeft="8dp"
+                android:text="📂 Geri yükle" />
+
+            <Button
+                android:id="@+id/btnAutoPlay"
+                style="@style/Btn"
+                android:layout_marginLeft="8dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 

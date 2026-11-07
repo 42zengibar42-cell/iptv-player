@@ -262,6 +262,7 @@ class ChannelsActivity : AppCompatActivity() {
                 loading.visibility = View.GONE
                 setSection(data)
                 buildCategories(focusList, visibleCategories())
+                if (key == Kind.LIVE) maybeAutoPlay()
                 if (force) {
                     Toast.makeText(
                         this@ChannelsActivity,
@@ -539,6 +540,23 @@ class ChannelsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Kapat", null)
             .show()
+    }
+
+    /** Uygulama ilk açıldığında en son izlenen kanalı başlat */
+    private fun maybeAutoPlay() {
+        if (Repo.autoStarted) return
+        Repo.autoStarted = true
+        if (!Accounts.autoPlay(this)) return
+        val last = prefs.lastLive ?: return
+        val items = chAdapter.items
+        val i = items.indexOfFirst { it.key == last.key }
+        if (i >= 0) {
+            Repo.playlist = items
+            startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", i))
+        } else {
+            Repo.playlist = listOf(last)
+            startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", 0))
+        }
     }
 
     private var editorOpened = false

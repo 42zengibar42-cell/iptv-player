@@ -52,6 +52,9 @@ object Repo {
     var liveList: List<Channel> = emptyList()
     var liveIndex: Int = -1
 
+    /** Açılışta son kanal bir kez denendi mi */
+    var autoStarted = false
+
     /** Köşe / yan yana: true = ekranın yarısı yarısı */
     var splitMode = false
 

@@ -15,6 +15,7 @@ class AccountsActivity : AppCompatActivity() {
 
     private lateinit var adapter: CategoryAdapter
     private var accounts: List<Account> = emptyList()
+    private lateinit var backupUi: BackupUi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,6 +27,19 @@ class AccountsActivity : AppCompatActivity() {
         rv.adapter = adapter
         findViewById<TextView>(R.id.tvVersion).text = "KcKTV sürüm ${Updater.currentVersion(this)}"
         findViewById<Button>(R.id.btnUpdate).setOnClickListener { Updater.check(this, manual = true) }
+
+        backupUi = BackupUi(this)
+        findViewById<Button>(R.id.btnBackup).setOnClickListener { backupUi.backup() }
+        findViewById<Button>(R.id.btnRestore).setOnClickListener { backupUi.restore() }
+        val btnAuto = findViewById<Button>(R.id.btnAutoPlay)
+        fun label() {
+            btnAuto.text = if (Accounts.autoPlay(this)) "▶ Açılışta son kanal: Açık" else "▶ Açılışta son kanal: Kapalı"
+        }
+        label()
+        btnAuto.setOnClickListener {
+            Accounts.setAutoPlay(this, !Accounts.autoPlay(this))
+            label()
+        }
     }
 
     override fun onResume() {
