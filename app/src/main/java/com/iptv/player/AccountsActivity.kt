@@ -34,6 +34,9 @@ class AccountsActivity : AppCompatActivity() {
 
         backupUi = BackupUi(this)
         findViewById<Button>(R.id.btnBackup).setOnClickListener { backupUi.backup() }
+        findViewById<Button>(R.id.btnHelp).setOnClickListener {
+            startActivity(android.content.Intent(this, HelpActivity::class.java))
+        }
         findViewById<Button>(R.id.btnRestore).setOnClickListener { backupUi.restore() }
         val btnAuto = findViewById<Button>(R.id.btnAutoPlay)
         fun label() {

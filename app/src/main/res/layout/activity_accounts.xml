@@ -60,6 +60,12 @@
                 android:id="@+id/btnAutoPlay"
                 style="@style/Btn"
                 android:layout_marginLeft="8dp" />
+
+            <Button
+                android:id="@+id/btnHelp"
+                style="@style/Btn"
+                android:layout_marginLeft="8dp"
+                android:text="📖 Kullanım kılavuzu" />
         </LinearLayout>
 
         <LinearLayout
