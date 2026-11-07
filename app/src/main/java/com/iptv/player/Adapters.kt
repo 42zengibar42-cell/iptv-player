@@ -19,6 +19,9 @@ class CategoryAdapter(
     var items: List<String> = emptyList()
     var selected = 0
 
+    /** true: satırlar iki satıra kadar yazı gösterir */
+    var multiLine = false
+
     class VH(val tv: TextView) : RecyclerView.ViewHolder(tv)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
@@ -28,6 +31,10 @@ class CategoryAdapter(
 
     override fun onBindViewHolder(h: VH, position: Int) {
         h.tv.text = items[position]
+        if (multiLine) {
+            h.tv.isSingleLine = false
+            h.tv.maxLines = 3
+        }
         h.tv.isActivated = position == selected
         h.tv.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) select(h.bindingAdapterPosition) }
         h.tv.setOnClickListener {

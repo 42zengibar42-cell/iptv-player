@@ -127,6 +127,7 @@ class ChannelsActivity : AppCompatActivity() {
 
         showTab(Kind.LIVE, focusList = true)
         Updater.autoCheck(this)
+        checkExpiry()
     }
 
     override fun onStop() {
@@ -613,6 +614,28 @@ class ChannelsActivity : AppCompatActivity() {
                 rvChannels.scrollToPosition(p)
                 rvChannels.post { rvChannels.findViewHolderForAdapterPosition(p)?.itemView?.requestFocus() }
             }
+        }
+    }
+
+    /** Abonelik bitişine 7 gün ya da daha az kaldıysa günde bir kez uyar */
+    private fun checkExpiry() {
+        lifecycleScope.launch {
+            val info = Repo.accountInfo(account) ?: return@launch
+            val d = info.daysLeft ?: return@launch
+            if (d > 7) return@launch
+            val sp = getSharedPreferences(Prefs.dataFile(prefs.accountId), MODE_PRIVATE)
+            val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+            if (sp.getString("expwarn_day", null) == today) return@launch
+            sp.edit().putString("expwarn_day", today).apply()
+            val date = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.GERMANY).format(java.util.Date(info.expiresAt!!))
+            android.app.AlertDialog.Builder(this@ChannelsActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(if (d < 0) "⛔ Aboneliğin bitti" else "⚠ Aboneliğin bitmek üzere")
+                .setMessage(
+                    if (d < 0) "\"${account.title}\" aboneliğinin süresi $date tarihinde doldu."
+                    else "\"${account.title}\" aboneliğin $date tarihinde bitiyor ($d gün kaldı).\nSağlayıcından yenilemeyi unutma."
+                )
+                .setPositiveButton("Tamam", null)
+                .show()
         }
     }
 

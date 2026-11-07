@@ -110,10 +110,53 @@ object Repo {
 
     suspend fun loadMaxConnections(a: Account): Int? {
         maxConn[a.id]?.let { return it }
-        if (!a.isXtream) return null
+        return accountInfo(a)?.maxConnections
+    }
+
+    /** Abonelik bilgisi: bitiş tarihi, bağlantı hakkı, durum */
+    data class AccountInfo(
+        val expiresAt: Long?,
+        val maxConnections: Int?,
+        val activeConnections: Int?,
+        val status: String,
+    ) {
+        /** Kalan gün (süresiz ise null) */
+        val daysLeft: Int?
+            get() = expiresAt?.let { ((it - System.currentTimeMillis()) / 86_400_000L).toInt() }
+    }
+
+    private val infoCache = HashMap<String, Pair<Long, AccountInfo>>()
+
+    /** M3U linki "get.php?username=..&password=.." ise aynı sunucunun Xtream bilgisini kullan */
+    private fun xtreamOf(a: Account): Account? {
+        if (a.isXtream) return a
         return try {
-            JSONObject(Net.get(api(a, null))).optJSONObject("user_info")
-                ?.optString("max_connections")?.toIntOrNull()?.also { maxConn[a.id] = it }
+            val u = android.net.Uri.parse(a.m3uUrl)
+            val user = u.getQueryParameter("username") ?: return null
+            val pass = u.getQueryParameter("password") ?: return null
+            val port = if (u.port > 0) ":${u.port}" else ""
+            a.copy(type = Account.TYPE_XTREAM, server = "${u.scheme}://${u.host}$port", username = user, password = pass)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun accountInfo(a: Account, force: Boolean = false): AccountInfo? {
+        val now = System.currentTimeMillis()
+        if (!force) infoCache[a.id]?.let { (t, info) -> if (now - t < 10 * 60_000) return info }
+        val x = xtreamOf(a) ?: return null
+        return try {
+            val u = JSONObject(Net.get(api(x, null))).optJSONObject("user_info") ?: return null
+            val exp = u.optString("exp_date").toLongOrNull()?.takeIf { it > 0 }?.let { it * 1000 }
+            val info = AccountInfo(
+                expiresAt = exp,
+                maxConnections = u.optString("max_connections").toIntOrNull(),
+                activeConnections = u.optString("active_cons").toIntOrNull(),
+                status = u.optString("status"),
+            )
+            info.maxConnections?.let { maxConn[a.id] = it }
+            infoCache[a.id] = now to info
+            info
         } catch (e: Exception) {
             null
         }
